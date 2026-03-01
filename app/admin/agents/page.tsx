@@ -206,13 +206,8 @@ export default function AgentsPage() {
   ];
 
   const exportColumns = [
-    { key: 'agentCode' as keyof Agent, label: 'Agent Code' },
-    { key: 'name' as keyof Agent, label: 'Agent Name' },
-    { key: 'shopName' as keyof Agent, label: 'Shop Name' },
-    { key: 'totalSales' as keyof Agent, label: 'Total Sales (GH₵)' },
-    { key: 'walletBalance' as keyof Agent, label: 'Wallet Balance (GH₵)' },
-    { key: 'status' as keyof Agent, label: 'Status' },
-    { key: 'joinDate' as keyof Agent, label: 'Join Date' },
+    { key: 'totalSales' as keyof Agent, label: 'Total Sales' },
+    { key: 'walletBalance' as keyof Agent, label: 'Wallet Balance' },
   ];
 
   if (loading) {

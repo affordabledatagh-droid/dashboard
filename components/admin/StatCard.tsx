@@ -1,5 +1,6 @@
 import { COLORS } from '@/lib/constants/colors';
 import { ReactNode } from 'react';
+import { HiArrowTrendingUp, HiArrowTrendingDown } from 'react-icons/hi2';
 
 interface StatCardProps {
   label: string;
@@ -33,9 +34,13 @@ export default function StatCard({ label, value, accent, icon, trend }: StatCard
                 fontSize: '11px',
                 color: trend > 0 ? '#22c55e' : COLORS.red,
                 marginTop: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
               }}
             >
-              {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}%
+              {trend > 0 ? <HiArrowTrendingUp size={12} /> : <HiArrowTrendingDown size={12} />}
+              {Math.abs(trend)}%
             </div>
           )}
         </div>

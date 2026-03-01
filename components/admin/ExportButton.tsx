@@ -19,7 +19,19 @@ export default function ExportButton<T extends Record<string, any>>({
     const rows = data.map((item) =>
       columns.map((col) => {
         const value = item[col.key];
-        const stringValue = String(value ?? '');
+        
+        // Handle null/undefined
+        if (value === null || value === undefined) {
+          return '';
+        }
+        
+        // Keep numbers as pure numbers (no formatting)
+        if (typeof value === 'number') {
+          return value;
+        }
+        
+        // Convert to string and escape commas
+        const stringValue = String(value);
         return stringValue.includes(',') ? `"${stringValue}"` : stringValue;
       }).join(',')
     );

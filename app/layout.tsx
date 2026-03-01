@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DataLink Admin Dashboard",
-  description: "Admin dashboard for DataLink platform",
+  title: "Affordabledatahub Admin Dashboard",
+  description: "Admin dashboard for Affordabledatahub platform",
 };
 
 export default function RootLayout({

@@ -2,7 +2,7 @@
 
 import { useState, ReactNode } from 'react';
 import { COLORS } from '@/lib/constants/colors';
-import { HiMagnifyingGlass, HiChevronLeft, HiChevronRight } from 'react-icons/hi2';
+import { HiMagnifyingGlass, HiChevronLeft, HiChevronRight, HiChevronUp, HiChevronDown } from 'react-icons/hi2';
 
 interface Column<T> {
   key: keyof T | string;
@@ -125,8 +125,12 @@ export default function DataTable<T extends Record<string, any>>({
                     cursor: column.sortable ? 'pointer' : 'default',
                   }}
                 >
-                  {column.label}
-                  {sortKey === column.key && (sortDirection === 'asc' ? ' ↑' : ' ↓')}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {column.label}
+                    {sortKey === column.key && (
+                      sortDirection === 'asc' ? <HiChevronUp size={14} /> : <HiChevronDown size={14} />
+                    )}
+                  </div>
                 </th>
               ))}
             </tr>

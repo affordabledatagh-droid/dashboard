@@ -3,12 +3,21 @@
 import { useEffect, useState } from 'react';
 import { COLORS } from '@/lib/constants/colors';
 import DataTable from '@/components/admin/DataTable';
+import Modal from '@/components/admin/Modal';
+import Toast from '@/components/admin/Toast';
 import { Withdrawal } from '@/lib/types/admin';
 import { HiCheckCircle, HiXCircle } from 'react-icons/hi2';
 
 export default function WithdrawalsPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
+  const [modalType, setModalType] = useState<'approve' | 'reject' | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; visible: boolean }>({
+    message: '',
+    type: 'success',
+    visible: false,
+  });
 
   useEffect(() => {
     // Mock data - replace with actual API call
@@ -40,9 +49,54 @@ export default function WithdrawalsPage() {
         status: 'completed',
         paymentMethod: 'MTN Mobile Money',
       },
+      {
+        id: 'WD004',
+        agentName: 'Yaw Boateng',
+        agentCode: 'AG004',
+        amount: 734.00,
+        requestDate: '2026-02-28',
+        status: 'pending',
+        paymentMethod: 'AirtelTigo Money',
+      },
     ]);
     setLoading(false);
   }, []);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type, visible: true });
+  };
+
+  const handleApprove = (withdrawal: Withdrawal) => {
+    setSelectedWithdrawal(withdrawal);
+    setModalType('approve');
+  };
+
+  const handleReject = (withdrawal: Withdrawal) => {
+    setSelectedWithdrawal(withdrawal);
+    setModalType('reject');
+  };
+
+  const confirmApprove = () => {
+    if (selectedWithdrawal) {
+      setWithdrawals(withdrawals.map(w => 
+        w.id === selectedWithdrawal.id ? { ...w, status: 'completed' } : w
+      ));
+      showToast('Withdrawal approved successfully', 'success');
+      setModalType(null);
+      setSelectedWithdrawal(null);
+    }
+  };
+
+  const confirmReject = () => {
+    if (selectedWithdrawal) {
+      setWithdrawals(withdrawals.map(w => 
+        w.id === selectedWithdrawal.id ? { ...w, status: 'failed' } : w
+      ));
+      showToast('Withdrawal rejected', 'info');
+      setModalType(null);
+      setSelectedWithdrawal(null);
+    }
+  };
 
   const columns = [
     {
@@ -108,6 +162,7 @@ export default function WithdrawalsPage() {
         withdrawal.status === 'pending' ? (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
+              onClick={() => handleApprove(withdrawal)}
               style={{
                 padding: '6px 10px',
                 background: '#22c55e20',
@@ -127,6 +182,7 @@ export default function WithdrawalsPage() {
               Approve
             </button>
             <button
+              onClick={() => handleReject(withdrawal)}
               style={{
                 padding: '6px 10px',
                 background: '#f5323220',
@@ -179,6 +235,14 @@ export default function WithdrawalsPage() {
         margin: '0 auto',
       }}
     >
+      {/* Toast */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.visible}
+        onClose={() => setToast({ ...toast, visible: false })}
+      />
+
       {/* Header */}
       <div style={{ marginBottom: 'clamp(24px, 4vw, 32px)' }}>
         <h1
@@ -235,6 +299,21 @@ export default function WithdrawalsPage() {
             GH₵ {totalPending.toLocaleString()}
           </div>
         </div>
+        <div
+          style={{
+            background: COLORS.surface,
+            border: `1.5px solid ${COLORS.border}`,
+            borderRadius: '12px',
+            padding: '16px',
+          }}
+        >
+          <div style={{ fontSize: '12px', color: COLORS.muted, marginBottom: '8px' }}>
+            Total Requests
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 800, color: COLORS.blue }}>
+            {withdrawals.length}
+          </div>
+        </div>
       </div>
 
       {/* Withdrawals Table */}
@@ -252,6 +331,118 @@ export default function WithdrawalsPage() {
           searchPlaceholder="Search by agent name, code, or request ID..."
         />
       </div>
+
+      {/* Approve Modal */}
+      {modalType === 'approve' && selectedWithdrawal && (
+        <Modal isOpen={true} onClose={() => setModalType(null)} title="Approve Withdrawal">
+          <div>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', color: COLORS.muted, marginBottom: '16px' }}>
+                Confirm approval of withdrawal request:
+              </div>
+              <div style={{ background: COLORS.faint, padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', color: COLORS.muted }}>Agent:</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: COLORS.white }}>
+                    {selectedWithdrawal.agentName} ({selectedWithdrawal.agentCode})
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', color: COLORS.muted }}>Amount:</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: COLORS.white }}>
+                    GH₵ {selectedWithdrawal.amount.toLocaleString()}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '13px', color: COLORS.muted }}>Payment Method:</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: COLORS.white }}>
+                    {selectedWithdrawal.paymentMethod}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setModalType(null)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: COLORS.faint,
+                  border: `1.5px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  color: COLORS.white,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmApprove}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: '#22c55e',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: COLORS.white,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Approve Withdrawal
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reject Modal */}
+      {modalType === 'reject' && selectedWithdrawal && (
+        <Modal isOpen={true} onClose={() => setModalType(null)} title="Reject Withdrawal">
+          <div>
+            <p style={{ fontSize: '14px', color: COLORS.muted, marginBottom: '20px' }}>
+              Are you sure you want to reject the withdrawal request from {selectedWithdrawal.agentName} for GH₵ {selectedWithdrawal.amount.toLocaleString()}?
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setModalType(null)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: COLORS.faint,
+                  border: `1.5px solid ${COLORS.border}`,
+                  borderRadius: '8px',
+                  color: COLORS.white,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReject}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  background: COLORS.red,
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: COLORS.white,
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Reject Request
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

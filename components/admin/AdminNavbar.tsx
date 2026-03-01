@@ -12,7 +12,6 @@ import {
   HiCube,
   HiCurrencyDollar,
   HiChartPie,
-  HiCog6Tooth,
   HiBars3,
   HiXMark,
   HiArrowRightOnRectangle,
@@ -25,7 +24,6 @@ const navItems = [
   { label: 'Packages', href: '/admin/packages', icon: HiCube },
   { label: 'Withdrawals', href: '/admin/withdrawals', icon: HiCurrencyDollar },
   { label: 'Analytics', href: '/admin/analytics', icon: HiChartPie },
-  { label: 'Settings', href: '/admin/settings', icon: HiCog6Tooth },
 ];
 
 export default function AdminNavbar() {
@@ -55,7 +53,7 @@ export default function AdminNavbar() {
       >
         {/* Logo */}
         <Link href="/admin" style={{ fontSize: 'clamp(18px, 3vw, 20px)', fontWeight: 800, color: COLORS.blue }}>
-          Affordable Data Admin
+          Affordabledatahub Admin
         </Link>
 
         {/* Desktop Navigation */}

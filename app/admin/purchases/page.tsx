@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react';
 import { COLORS, NETWORK_COLORS } from '@/lib/constants/colors';
 import DataTable from '@/components/admin/DataTable';
 import ExportButton from '@/components/admin/ExportButton';
+import Modal from '@/components/admin/Modal';
 import { DataPurchase } from '@/lib/types/admin';
 import { HiEye } from 'react-icons/hi2';
 
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<DataPurchase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewModal, setViewModal] = useState<{ open: boolean; purchase: DataPurchase | null }>({
+    open: false,
+    purchase: null,
+  });
 
   useEffect(() => {
     // Mock data - replace with actual API call
@@ -67,11 +72,6 @@ export default function PurchasesPage() {
   }, []);
 
   const columns = [
-    {
-      key: 'id',
-      label: 'Purchase ID',
-      sortable: true,
-    },
     {
       key: 'date',
       label: 'Date',
@@ -162,8 +162,9 @@ export default function PurchasesPage() {
     {
       key: 'actions',
       label: 'Actions',
-      render: () => (
+      render: (purchase: DataPurchase) => (
         <button
+          onClick={() => setViewModal({ open: true, purchase })}
           style={{
             padding: '6px',
             background: COLORS.faint,
@@ -171,7 +172,10 @@ export default function PurchasesPage() {
             borderRadius: '6px',
             color: COLORS.blue,
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.blue + '20')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = COLORS.faint)}
           title="View Details"
         >
           <HiEye size={16} />
@@ -181,20 +185,8 @@ export default function PurchasesPage() {
   ];
 
   const exportColumns = [
-    { key: 'id' as keyof DataPurchase, label: 'Purchase ID' },
-    { key: 'date' as keyof DataPurchase, label: 'Date' },
-    { key: 'time' as keyof DataPurchase, label: 'Time' },
-    { key: 'customerName' as keyof DataPurchase, label: 'Customer Name' },
     { key: 'phoneNumber' as keyof DataPurchase, label: 'Phone Number' },
-    { key: 'network' as keyof DataPurchase, label: 'Network' },
-    { key: 'dataPackage' as keyof DataPurchase, label: 'Data Package' },
-    { key: 'gbAmount' as keyof DataPurchase, label: 'GB Amount' },
-    { key: 'validity' as keyof DataPurchase, label: 'Validity' },
-    { key: 'amount' as keyof DataPurchase, label: 'Amount (GH₵)' },
-    { key: 'agentName' as keyof DataPurchase, label: 'Agent Name' },
-    { key: 'agentCode' as keyof DataPurchase, label: 'Agent Code' },
-    { key: 'agentProfit' as keyof DataPurchase, label: 'Agent Profit (GH₵)' },
-    { key: 'status' as keyof DataPurchase, label: 'Status' },
+    { key: 'gbAmount' as keyof DataPurchase, label: 'Data Size (GB)' },
   ];
 
   if (loading) {
@@ -265,6 +257,179 @@ export default function PurchasesPage() {
           searchPlaceholder="Search by customer name, phone, or purchase ID..."
         />
       </div>
+
+      {/* View Details Modal */}
+      {viewModal.open && viewModal.purchase && (
+        <Modal
+          title="Purchase Details"
+          onClose={() => setViewModal({ open: false, purchase: null })}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Purchase ID & Status */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px',
+                background: COLORS.faint,
+                borderRadius: '8px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>
+                  Purchase ID
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: COLORS.white }}>
+                  {viewModal.purchase.id}
+                </div>
+              </div>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  background:
+                    viewModal.purchase.status === 'success'
+                      ? '#22c55e20'
+                      : viewModal.purchase.status === 'pending'
+                      ? '#f5c40020'
+                      : '#f5323220',
+                  color:
+                    viewModal.purchase.status === 'success'
+                      ? '#22c55e'
+                      : viewModal.purchase.status === 'pending'
+                      ? COLORS.yellow
+                      : COLORS.red,
+                }}
+              >
+                {viewModal.purchase.status}
+              </span>
+            </div>
+
+            {/* Customer Information */}
+            <div>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: COLORS.white, marginBottom: '12px' }}>
+                Customer Information
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Name</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.customerName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Phone Number</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.phoneNumber}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Package Details */}
+            <div>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: COLORS.white, marginBottom: '12px' }}>
+                Package Details
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Network</div>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: NETWORK_COLORS[viewModal.purchase.network].bg,
+                      color: NETWORK_COLORS[viewModal.purchase.network].text,
+                    }}
+                  >
+                    {viewModal.purchase.network}
+                  </span>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Package</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.dataPackage}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Data Size</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.gbAmount} GB</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Validity</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.validity}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Transaction Details */}
+            <div>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: COLORS.white, marginBottom: '12px' }}>
+                Transaction Details
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Date</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.date}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Time</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.time}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Amount</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: COLORS.blue }}>
+                    GH₵ {viewModal.purchase.amount.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Agent Profit</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#22c55e' }}>
+                    GH₵ {viewModal.purchase.agentProfit.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Agent Information */}
+            <div>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: COLORS.white, marginBottom: '12px' }}>
+                Agent Information
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Agent Name</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.agentName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: COLORS.muted, marginBottom: '4px' }}>Agent Code</div>
+                  <div style={{ fontSize: '13px', color: COLORS.white }}>{viewModal.purchase.agentCode}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => setViewModal({ open: false, purchase: null })}
+              style={{
+                width: '100%',
+                padding: '10px',
+                background: COLORS.blue,
+                border: 'none',
+                borderRadius: '8px',
+                color: COLORS.white,
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginTop: '8px',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

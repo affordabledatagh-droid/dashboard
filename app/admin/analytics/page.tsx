@@ -304,68 +304,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
-
-      {/* Export Reports */}
-      <div
-        style={{
-          background: COLORS.surface,
-          border: `1.5px solid ${COLORS.border}`,
-          borderRadius: '14px',
-          padding: 'clamp(16px, 3vw, 24px)',
-        }}
-      >
-        <h2
-          style={{
-            fontSize: 'clamp(18px, 3vw, 20px)',
-            fontWeight: 700,
-            color: COLORS.white,
-            marginBottom: '16px',
-          }}
-        >
-          Generate Reports
-        </h2>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))',
-            gap: '12px',
-          }}
-        >
-          {[
-            'Revenue Report',
-            'Agent Performance',
-            'Network Analysis',
-            'Customer Insights',
-            'Transaction History',
-            'Commission Report',
-          ].map((report) => (
-            <button
-              key={report}
-              onClick={() => alert(`Generating ${report}...`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '12px 16px',
-                background: COLORS.faint,
-                border: `1.5px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                color: COLORS.white,
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = COLORS.blue)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = COLORS.faint)}
-            >
-              <HiArrowDownTray size={16} />
-              {report}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
