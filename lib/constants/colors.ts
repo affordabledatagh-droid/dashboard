@@ -15,6 +15,6 @@ export const COLORS = {
 
 export const NETWORK_COLORS = {
   MTN: { bg: COLORS.yellow, text: '#000000' },
-  Telecel: { bg: COLORS.red, text: COLORS.white },
-  AirtelTigo: { bg: 'linear-gradient(135deg, #f53232 0%, #0066ff 100%)', text: COLORS.white },
+  TELECEL: { bg: COLORS.red, text: COLORS.white },
+  "AT PREMIUM": { bg: 'linear-gradient(135deg, #f53232 0%, #0066ff 100%)', text: COLORS.white },
 } as const;

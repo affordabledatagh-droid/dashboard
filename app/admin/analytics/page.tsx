@@ -43,8 +43,8 @@ export default function AnalyticsPage() {
 
     setNetworkStats([
       { network: 'MTN', purchases: 542, revenue: 18450, percentage: 45 },
-      { network: 'Telecel', purchases: 361, revenue: 12300, percentage: 30 },
-      { network: 'AirtelTigo', purchases: 301, revenue: 10250, percentage: 25 },
+      { network: 'TELECEL', purchases: 361, revenue: 12300, percentage: 30 },
+      { network: 'AT PREMIUM', purchases: 301, revenue: 10250, percentage: 25 },
     ]);
 
     setLoading(false);

@@ -1,268 +1,241 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { COLORS, NETWORK_COLORS } from '@/lib/constants/colors';
-import DataTable from '@/components/admin/DataTable';
-import Modal from '@/components/admin/Modal';
-import Toast from '@/components/admin/Toast';
-import { DataPackage } from '@/lib/types/admin';
-import { HiPencil, HiTrash, HiPlus } from 'react-icons/hi2';
+import { useEffect, useState } from 'react'
+import { COLORS, NETWORK_COLORS } from '@/lib/constants/colors'
+import DataTable from '@/components/admin/DataTable'
+import Modal from '@/components/admin/Modal'
+import Toast from '@/components/admin/Toast'
+import { adminApi } from '@/lib/utils/adminApi'
+import { HiPencil, HiTrash, HiPlus } from 'react-icons/hi2'
 
-type NetworkFilter = 'All' | 'MTN' | 'Telecel' | 'AirtelTigo';
+// ── Types ─────────────────────────────────────────────────────────
+
+type Network = 'MTN' | 'TELECEL' | 'AT PREMIUM'
+type NetworkFilter = 'All' | Network
+
+interface Package {
+  id:         string
+  network:    Network
+  name:       string       // maps to backend `name`
+  data_size:  string       // e.g. "1 GB"
+  validity:   string
+  admin_price: number
+  is_active:  boolean
+}
+
+interface FormState {
+  network:     Network
+  name:        string
+  data_size:   string
+  validity:    string
+  admin_price: number
+  is_active:   boolean
+}
+
+const EMPTY_FORM: FormState = {
+  network:     'MTN',
+  name:        '',
+  data_size:   '',
+  validity:    '',
+  admin_price: 0,
+  is_active:   true,
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+function StatusToggle({ pkg, onToggle }: { pkg: Package; onToggle: (pkg: Package) => void }) {
+  return (
+    <button
+      onClick={() => onToggle(pkg)}
+      title={pkg.is_active ? 'Click to deactivate' : 'Click to activate'}
+      style={{
+        padding: '4px 12px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        border: 'none',
+        cursor: 'pointer',
+        background: pkg.is_active ? '#22c55e20' : `${COLORS.red}20`,
+        color:      pkg.is_active ? '#22c55e'   : COLORS.red,
+        transition: 'all 0.15s',
+      }}
+    >
+      {pkg.is_active ? 'Active' : 'Inactive'}
+    </button>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────
 
 export default function PackagesPage() {
-  const [packages, setPackages] = useState<DataPackage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<NetworkFilter>('All');
-  const [selectedPackage, setSelectedPackage] = useState<DataPackage | null>(null);
-  const [modalType, setModalType] = useState<'add' | 'edit' | 'delete' | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; visible: boolean }>({
-    message: '',
-    type: 'success',
-    visible: false,
-  });
+  const [packages,   setPackages]   = useState<Package[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
+  const [activeTab,  setActiveTab]  = useState<NetworkFilter>('All')
+  const [selected,   setSelected]   = useState<Package | null>(null)
+  const [modalType,  setModalType]  = useState<'add' | 'edit' | 'delete' | null>(null)
+  const [formData,   setFormData]   = useState<FormState>(EMPTY_FORM)
+  const [toast,      setToast]      = useState<{ message: string; type: 'success' | 'error' | 'info'; visible: boolean }>({ message: '', type: 'success', visible: false })
 
-  const [formData, setFormData] = useState<Partial<DataPackage>>({
-    network: 'MTN',
-    packageName: '',
-    dataSize: 0,
-    validity: '',
-    basePrice: 0,
-    defaultAgentProfit: 0,
-    status: 'active',
-  });
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') =>
+    setToast({ message, type, visible: true })
 
-  useEffect(() => {
-    // Mock data - replace with actual API call
-    setPackages([
-      {
-        id: '1',
-        network: 'MTN',
-        packageName: '1GB Daily',
-        dataSize: 1,
-        validity: '1 Day',
-        basePrice: 4.50,
-        defaultAgentProfit: 0.50,
-        status: 'active',
-      },
-      {
-        id: '2',
-        network: 'MTN',
-        packageName: '2GB Weekly',
-        dataSize: 2,
-        validity: '7 Days',
-        basePrice: 10.00,
-        defaultAgentProfit: 1.00,
-        status: 'active',
-      },
-      {
-        id: '3',
-        network: 'MTN',
-        packageName: '5GB Monthly',
-        dataSize: 5,
-        validity: '30 Days',
-        basePrice: 25.00,
-        defaultAgentProfit: 2.50,
-        status: 'active',
-      },
-      {
-        id: '4',
-        network: 'Telecel',
-        packageName: '1GB Daily',
-        dataSize: 1,
-        validity: '1 Day',
-        basePrice: 4.00,
-        defaultAgentProfit: 0.40,
-        status: 'active',
-      },
-      {
-        id: '5',
-        network: 'Telecel',
-        packageName: '5GB Monthly',
-        dataSize: 5,
-        validity: '30 Days',
-        basePrice: 30.00,
-        defaultAgentProfit: 3.00,
-        status: 'active',
-      },
-      {
-        id: '6',
-        network: 'AirtelTigo',
-        packageName: '2GB Weekly',
-        dataSize: 2,
-        validity: '7 Days',
-        basePrice: 9.00,
-        defaultAgentProfit: 0.90,
-        status: 'active',
-      },
-      {
-        id: '7',
-        network: 'AirtelTigo',
-        packageName: '10GB Monthly',
-        dataSize: 10,
-        validity: '30 Days',
-        basePrice: 55.00,
-        defaultAgentProfit: 5.50,
-        status: 'active',
-      },
-    ]);
-    setLoading(false);
-  }, []);
+  // ── Fetch ──────────────────────────────────────────────────────
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
-    setToast({ message, type, visible: true });
-  };
+  const loadPackages = async () => {
+    setLoading(true)
+    try {
+      const { data } = await adminApi.getPackages()
+      setPackages(data)
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const filteredPackages = activeTab === 'All' 
-    ? packages 
-    : packages.filter(pkg => pkg.network === activeTab);
+  useEffect(() => { loadPackages() }, [])
 
-  const handleAdd = () => {
+  // ── Filtered list ──────────────────────────────────────────────
+
+  const filtered = activeTab === 'All'
+    ? packages
+    : packages.filter(p => p.network === activeTab)
+
+  // ── Handlers ───────────────────────────────────────────────────
+
+  const openAdd = () => {
+    setFormData({ ...EMPTY_FORM, network: activeTab === 'All' ? 'MTN' : activeTab })
+    setSelected(null)
+    setModalType('add')
+  }
+
+  const openEdit = (pkg: Package) => {
+    setSelected(pkg)
     setFormData({
-      network: activeTab === 'All' ? 'MTN' : activeTab,
-      packageName: '',
-      dataSize: 0,
-      validity: '',
-      basePrice: 0,
-      defaultAgentProfit: 0,
-      status: 'active',
-    });
-    setModalType('add');
-  };
+      network:     pkg.network,
+      name:        pkg.name,
+      data_size:   pkg.data_size,
+      validity:    pkg.validity,
+      admin_price: pkg.admin_price,
+      is_active:   pkg.is_active,
+    })
+    setModalType('edit')
+  }
 
-  const handleEdit = (pkg: DataPackage) => {
-    setSelectedPackage(pkg);
-    setFormData(pkg);
-    setModalType('edit');
-  };
+  const openDelete = (pkg: Package) => {
+    setSelected(pkg)
+    setModalType('delete')
+  }
 
-  const handleDelete = (pkg: DataPackage) => {
-    setSelectedPackage(pkg);
-    setModalType('delete');
-  };
-
-  const confirmDelete = () => {
-    if (selectedPackage) {
-      setPackages(packages.filter(p => p.id !== selectedPackage.id));
-      showToast('Package deleted successfully', 'success');
-      setModalType(null);
-      setSelectedPackage(null);
+  // Toggle active/inactive inline — no modal needed
+  const handleToggle = async (pkg: Package) => {
+    try {
+      const { data: updated } = await adminApi.updatePackage(pkg.id, { is_active: !pkg.is_active })
+      setPackages(prev => prev.map(p => p.id === updated.id ? updated : p))
+      showToast(`Package ${updated.is_active ? 'activated' : 'deactivated'}`)
+    } catch (err: any) {
+      showToast(err.message, 'error')
     }
-  };
+  }
 
-  const savePackage = () => {
-    if (modalType === 'add') {
-      const newPackage: DataPackage = {
-        id: String(packages.length + 1),
-        ...formData as DataPackage,
-      };
-      setPackages([...packages, newPackage]);
-      showToast('Package added successfully', 'success');
-    } else if (modalType === 'edit' && selectedPackage) {
-      setPackages(packages.map(p => p.id === selectedPackage.id ? { ...p, ...formData } : p));
-      showToast('Package updated successfully', 'success');
+  const handleSave = async () => {
+    if (!formData.name || !formData.data_size || !formData.validity || formData.admin_price <= 0) {
+      showToast('Please fill in all required fields', 'error')
+      return
     }
-    setModalType(null);
-    setSelectedPackage(null);
-  };
+    setSaving(true)
+    try {
+      if (modalType === 'add') {
+        const { data } = await adminApi.createPackage({
+          name:       formData.name,
+          dataSize:   formData.data_size,
+          validity:   formData.validity,
+          adminPrice: formData.admin_price,
+          network:    formData.network,
+        })
+        setPackages(prev => [data, ...prev])
+        showToast('Package added')
+      } else if (modalType === 'edit' && selected) {
+        const { data: updated } = await adminApi.updatePackage(selected.id, {
+          name:        formData.name,
+          data_size:   formData.data_size,
+          validity:    formData.validity,
+          admin_price: formData.admin_price,
+          network:     formData.network,
+          is_active:   formData.is_active,
+        })
+        setPackages(prev => prev.map(p => p.id === updated.id ? updated : p))
+        showToast('Package updated')
+      }
+      setModalType(null)
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selected) return
+    setSaving(true)
+    try {
+      await adminApi.deletePackage(selected.id)
+      setPackages(prev => prev.filter(p => p.id !== selected.id))
+      showToast('Package deleted')
+      setModalType(null)
+    } catch (err: any) {
+      showToast(err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Table columns ──────────────────────────────────────────────
 
   const columns = [
     {
       key: 'network',
       label: 'Network',
-      render: (pkg: DataPackage) => {
-        const networkColor = NETWORK_COLORS[pkg.network];
+      render: (pkg: Package) => {
+        const c = NETWORK_COLORS[pkg.network]
         return (
-          <span
-            style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '11px',
-              fontWeight: 700,
-              background: networkColor.bg,
-              color: networkColor.text,
-            }}
-          >
+          <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: c.bg, color: c.text }}>
             {pkg.network}
           </span>
-        );
+        )
       },
     },
+    { key: 'name',       label: 'Package Name', sortable: true },
+    { key: 'data_size',  label: 'Size',         sortable: true },
+    { key: 'validity',   label: 'Validity' },
     {
-      key: 'packageName',
-      label: 'Package Name',
-      sortable: true,
-    },
-    {
-      key: 'dataSize',
-      label: 'Data Size',
-      sortable: true,
-      render: (pkg: DataPackage) => `${pkg.dataSize} GB`,
-    },
-    {
-      key: 'validity',
-      label: 'Validity',
-    },
-    {
-      key: 'basePrice',
+      key: 'admin_price',
       label: 'Base Price',
       sortable: true,
-      render: (pkg: DataPackage) => `GH₵ ${pkg.basePrice.toFixed(2)}`,
+      render: (pkg: Package) => `GH₵ ${Number(pkg.admin_price).toFixed(2)}`,
     },
     {
-      key: 'defaultAgentProfit',
-      label: 'Agent Profit',
-      sortable: true,
-      render: (pkg: DataPackage) => `GH₵ ${pkg.defaultAgentProfit.toFixed(2)}`,
-    },
-    {
-      key: 'status',
+      key: 'is_active',
       label: 'Status',
-      render: (pkg: DataPackage) => (
-        <span
-          style={{
-            padding: '4px 10px',
-            borderRadius: '6px',
-            fontSize: '11px',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            background: pkg.status === 'active' ? '#22c55e20' : '#f5323220',
-            color: pkg.status === 'active' ? '#22c55e' : COLORS.red,
-          }}
-        >
-          {pkg.status}
-        </span>
-      ),
+      render: (pkg: Package) => <StatusToggle pkg={pkg} onToggle={handleToggle} />,
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (pkg: DataPackage) => (
+      render: (pkg: Package) => (
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => handleEdit(pkg)}
-            style={{
-              padding: '6px',
-              background: COLORS.faint,
-              border: 'none',
-              borderRadius: '6px',
-              color: COLORS.blue,
-              cursor: 'pointer',
-            }}
+            onClick={() => openEdit(pkg)}
+            style={{ padding: '6px', background: COLORS.faint, border: 'none', borderRadius: '6px', color: COLORS.blue, cursor: 'pointer' }}
             title="Edit"
           >
             <HiPencil size={16} />
           </button>
           <button
-            onClick={() => handleDelete(pkg)}
-            style={{
-              padding: '6px',
-              background: COLORS.faint,
-              border: 'none',
-              borderRadius: '6px',
-              color: COLORS.red,
-              cursor: 'pointer',
-            }}
+            onClick={() => openDelete(pkg)}
+            style={{ padding: '6px', background: COLORS.faint, border: 'none', borderRadius: '6px', color: COLORS.red, cursor: 'pointer' }}
             title="Delete"
           >
             <HiTrash size={16} />
@@ -270,326 +243,130 @@ export default function PackagesPage() {
         </div>
       ),
     },
-  ];
+  ]
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '80vh',
-          color: COLORS.muted,
-        }}
-      >
-        Loading...
-      </div>
-    );
+  // ── Form field helper ──────────────────────────────────────────
+
+  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div>
+      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: COLORS.muted, marginBottom: '8px' }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px',
+    background: COLORS.bg, border: `1.5px solid ${COLORS.border}`,
+    borderRadius: '8px', color: COLORS.white, fontSize: '14px',
+    outline: 'none', boxSizing: 'border-box',
   }
 
-  const tabs: NetworkFilter[] = ['All', 'MTN', 'Telecel', 'AirtelTigo'];
+  const tabs: NetworkFilter[] = ['All', 'MTN', 'TELECEL', 'AT PREMIUM']
+
+  // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{
-        padding: 'clamp(20px, 4vw, 32px) clamp(16px, 3vw, 24px)',
-        maxWidth: '1400px',
-        margin: '0 auto',
-      }}
-    >
-      {/* Toast */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.visible}
-        onClose={() => setToast({ ...toast, visible: false })}
-      />
+    <div style={{ padding: 'clamp(20px, 4vw, 32px) clamp(16px, 3vw, 24px)', maxWidth: '1400px', margin: '0 auto' }}>
+
+      <Toast message={toast.message} type={toast.type} isVisible={toast.visible}
+        onClose={() => setToast(t => ({ ...t, visible: false }))} />
 
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 'clamp(24px, 4vw, 32px)',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1
-            style={{
-              fontSize: 'clamp(24px, 4vw, 32px)',
-              fontWeight: 800,
-              color: COLORS.white,
-              marginBottom: '8px',
-            }}
-          >
+          <h1 style={{ fontSize: 'clamp(22px, 4vw, 28px)', fontWeight: 800, color: COLORS.white, marginBottom: '6px' }}>
             Data Packages
           </h1>
           <p style={{ fontSize: '14px', color: COLORS.muted }}>
-            Manage data packages for all networks
+            {packages.length} total · {packages.filter(p => p.is_active).length} active
           </p>
         </div>
         <button
-          onClick={handleAdd}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 16px',
-            background: COLORS.blue,
-            border: 'none',
-            borderRadius: '8px',
-            color: COLORS.white,
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
+          onClick={openAdd}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: COLORS.blue, border: 'none', borderRadius: '8px', color: COLORS.white, fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
         >
-          <HiPlus size={16} />
-          Add Package
+          <HiPlus size={16} /> Add Package
         </button>
       </div>
 
-      {/* Network Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          marginBottom: 'clamp(16px, 3vw, 24px)',
-          flexWrap: 'wrap',
-        }}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '8px 16px',
-              background: activeTab === tab ? COLORS.blue : COLORS.surface,
-              border: `1.5px solid ${activeTab === tab ? COLORS.blue : COLORS.border}`,
-              borderRadius: '8px',
-              color: activeTab === tab ? COLORS.white : COLORS.muted,
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-          >
+      {/* Network tabs */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {tabs.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            padding: '8px 16px',
+            background: activeTab === tab ? COLORS.blue : COLORS.surface,
+            border: `1.5px solid ${activeTab === tab ? COLORS.blue : COLORS.border}`,
+            borderRadius: '8px',
+            color: activeTab === tab ? COLORS.white : COLORS.muted,
+            fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+          }}>
             {tab} {tab !== 'All' && `(${packages.filter(p => p.network === tab).length})`}
           </button>
         ))}
       </div>
 
-      {/* Packages Table */}
-      <div
-        style={{
-          background: COLORS.surface,
-          border: `1.5px solid ${COLORS.border}`,
-          borderRadius: '14px',
-          padding: 'clamp(16px, 3vw, 24px)',
-        }}
-      >
-        <DataTable
-          data={filteredPackages}
-          columns={columns}
-          searchPlaceholder="Search packages by name or network..."
-        />
+      {/* Table */}
+      <div style={{ background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, borderRadius: '14px', padding: '20px' }}>
+        {loading ? (
+          <p style={{ color: COLORS.muted, textAlign: 'center', padding: '40px 0' }}>Loading packages...</p>
+        ) : (
+          <DataTable data={filtered} columns={columns} searchPlaceholder="Search packages..." />
+        )}
       </div>
 
-      {/* Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       {(modalType === 'add' || modalType === 'edit') && (
-        <Modal 
-          isOpen={true} 
-          onClose={() => setModalType(null)} 
-          title={modalType === 'add' ? 'Add New Package' : 'Edit Package'}
-          maxWidth="600px"
-        >
+        <Modal isOpen onClose={() => setModalType(null)} title={modalType === 'add' ? 'Add New Package' : 'Edit Package'} maxWidth="560px">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                Network
-              </label>
-              <select
-                value={formData.network}
-                onChange={(e) => setFormData({ ...formData, network: e.target.value as any })}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: COLORS.bg,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                }}
-              >
+
+            <Field label="Network">
+              <select value={formData.network} onChange={e => setFormData(f => ({ ...f, network: e.target.value as Network }))} style={inputStyle}>
                 <option value="MTN">MTN</option>
-                <option value="Telecel">Telecel</option>
-                <option value="AirtelTigo">AirtelTigo</option>
+                <option value="TELECEL">TELELCEL</option>
+                <option value="AT PREMIUM">AT PREMIUM</option>
               </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                Package Name
-              </label>
-              <input
-                type="text"
-                value={formData.packageName}
-                onChange={(e) => setFormData({ ...formData, packageName: e.target.value })}
-                placeholder="e.g., 1GB Daily"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: COLORS.bg,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                }}
-              />
-            </div>
+            </Field>
+
+            <Field label="Package Name">
+              <input style={inputStyle} type="text" placeholder="e.g. MTN 1 GB" value={formData.name}
+                onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} />
+            </Field>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                  Data Size (GB)
-                </label>
-                <input
-                  type="number"
-                  value={formData.dataSize}
-                  onChange={(e) => setFormData({ ...formData, dataSize: Number(e.target.value) })}
-                  min="0"
-                  step="0.1"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    background: COLORS.bg,
-                    border: `1.5px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    color: COLORS.white,
-                    fontSize: '14px',
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                  Validity
-                </label>
-                <input
-                  type="text"
-                  value={formData.validity}
-                  onChange={(e) => setFormData({ ...formData, validity: e.target.value })}
-                  placeholder="e.g., 1 Day, 7 Days"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    background: COLORS.bg,
-                    border: `1.5px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    color: COLORS.white,
-                    fontSize: '14px',
-                  }}
-                />
-              </div>
+              <Field label="Data Size">
+                <input style={inputStyle} type="text" placeholder="e.g. 1 GB" value={formData.data_size}
+                  onChange={e => setFormData(f => ({ ...f, data_size: e.target.value }))} />
+              </Field>
+              <Field label="Validity">
+                <input style={inputStyle} type="text" placeholder="e.g. 30 days" value={formData.validity}
+                  onChange={e => setFormData(f => ({ ...f, validity: e.target.value }))} />
+              </Field>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                  Base Price (GH₵)
-                </label>
-                <input
-                  type="number"
-                  value={formData.basePrice}
-                  onChange={(e) => setFormData({ ...formData, basePrice: Number(e.target.value) })}
-                  min="0"
-                  step="0.01"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    background: COLORS.bg,
-                    border: `1.5px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    color: COLORS.white,
-                    fontSize: '14px',
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                  Agent Profit (GH₵)
-                </label>
-                <input
-                  type="number"
-                  value={formData.defaultAgentProfit}
-                  onChange={(e) => setFormData({ ...formData, defaultAgentProfit: Number(e.target.value) })}
-                  min="0"
-                  step="0.01"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    background: COLORS.bg,
-                    border: `1.5px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    color: COLORS.white,
-                    fontSize: '14px',
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: COLORS.muted, display: 'block', marginBottom: '8px' }}>
-                Status
-              </label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: COLORS.bg,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                }}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
+
+            <Field label="Base Price (GH₵)">
+              <input style={inputStyle} type="number" min="0" step="0.01" value={formData.admin_price}
+                onChange={e => setFormData(f => ({ ...f, admin_price: Number(e.target.value) }))} />
+            </Field>
+
+            {modalType === 'edit' && (
+              <Field label="Status">
+                <select value={formData.is_active ? 'active' : 'inactive'}
+                  onChange={e => setFormData(f => ({ ...f, is_active: e.target.value === 'active' }))}
+                  style={inputStyle}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </Field>
+            )}
+
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-              <button
-                onClick={() => setModalType(null)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: COLORS.faint,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={() => setModalType(null)} style={{ flex: 1, padding: '10px', background: COLORS.faint, border: `1.5px solid ${COLORS.border}`, borderRadius: '8px', color: COLORS.white, fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button
-                onClick={savePackage}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: COLORS.blue,
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                {modalType === 'add' ? 'Add Package' : 'Save Changes'}
+              <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: '10px', background: saving ? COLORS.faint : COLORS.blue, border: 'none', borderRadius: '8px', color: COLORS.white, fontSize: '14px', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving ? 'Saving...' : modalType === 'add' ? 'Add Package' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -597,49 +374,21 @@ export default function PackagesPage() {
       )}
 
       {/* Delete Modal */}
-      {modalType === 'delete' && selectedPackage && (
-        <Modal isOpen={true} onClose={() => setModalType(null)} title="Delete Package">
-          <div>
-            <p style={{ fontSize: '14px', color: COLORS.muted, marginBottom: '20px' }}>
-              Are you sure you want to delete the package "{selectedPackage.packageName}"? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => setModalType(null)}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: COLORS.faint,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                style={{
-                  flex: 1,
-                  padding: '10px',
-                  background: COLORS.red,
-                  border: 'none',
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Delete Package
-              </button>
-            </div>
+      {modalType === 'delete' && selected && (
+        <Modal isOpen onClose={() => setModalType(null)} title="Delete Package">
+          <p style={{ fontSize: '14px', color: COLORS.muted, marginBottom: '20px' }}>
+            Delete <strong style={{ color: COLORS.white }}>{selected.name}</strong>? This cannot be undone and will remove it from all agent shops.
+          </p>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={() => setModalType(null)} style={{ flex: 1, padding: '10px', background: COLORS.faint, border: `1.5px solid ${COLORS.border}`, borderRadius: '8px', color: COLORS.white, fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={saving} style={{ flex: 1, padding: '10px', background: saving ? COLORS.faint : COLORS.red, border: 'none', borderRadius: '8px', color: COLORS.white, fontSize: '14px', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving ? 'Deleting...' : 'Delete'}
+            </button>
           </div>
         </Modal>
       )}
     </div>
-  );
+  )
 }

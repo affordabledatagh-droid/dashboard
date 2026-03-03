@@ -1,289 +1,139 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { COLORS } from '@/lib/constants/colors';
-import { HiEye, HiEyeSlash, HiShieldCheck } from 'react-icons/hi2';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth'
+import {auth} from "../../../lib/config/firebase"
+import { COLORS } from '@/lib/constants/colors'
+import { HiShieldCheck } from 'react-icons/hi2'
+import { FcGoogle } from 'react-icons/fc'
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const router  = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
+  const handleGoogleLogin = async () => {
+    setError('')
+    setLoading(true)
     try {
-      // TEMPORARY: Mock authentication for development
-      // TODO: Replace with actual API endpoint when ready
-      await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
-      
-      // For now, accept any email/password combination
-      if (formData.email && formData.password) {
-        // Generate a mock token
-        const mockToken = 'dev_token_' + Date.now();
-        
-        // Store auth token
-        localStorage.setItem('admin_token', mockToken);
-        
-        // Set cookie for middleware
-        document.cookie = `admin_token=${mockToken}; path=/; max-age=86400`;
-        
-        // Redirect to dashboard
-        router.push('/admin');
-      } else {
-        throw new Error('Please enter email and password');
-      }
+      const provider = new GoogleAuthProvider()
+      const result   = await signInWithPopup(auth, provider)
+      const idToken  = await result.user.getIdToken()
 
-      /* 
-      // PRODUCTION CODE - Uncomment when API is ready:
-      const response = await fetch('/api/admin/login', {
-        method: 'POST',
+      // Verify with backend — checks role = 'admin' in Supabase
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/login`, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+        body:    JSON.stringify({ idToken }),
+      })
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Login failed');
+      const body = await res.json()
+
+      if (!res.ok) {
+        // Sign out of Firebase if they're not an admin
+        await signOut(auth)
+        throw new Error(body.error ?? 'Login failed')
       }
 
-      const data = await response.json();
-      
-      // Store auth token
-      localStorage.setItem('admin_token', data.token);
-      document.cookie = `admin_token=${data.token}; path=/; max-age=86400`;
-      
-      // Redirect to dashboard
-      router.push('/admin');
-      */
+      // Store token for subsequent API calls
+      localStorage.setItem('admin_token', idToken)
+      document.cookie = `admin_token=${idToken}; path=/; max-age=86400; SameSite=Strict`
+
+      router.push('/admin')
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
+      setError(err.message ?? 'Login failed')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: COLORS.bg,
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '440px',
-        }}
-      >
-        {/* Logo & Header */}
+    <div style={{
+      minHeight: '100vh', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      background: COLORS.bg, padding: '20px',
+    }}>
+      <div style={{ width: '100%', maxWidth: '420px' }}>
+
+        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '64px',
-              height: '64px',
-              borderRadius: '16px',
-              background: `linear-gradient(135deg, ${COLORS.blue} 0%, ${COLORS.blueLight} 100%)`,
-              marginBottom: '20px',
-            }}
-          >
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: '64px', height: '64px', borderRadius: '16px',
+            background: `linear-gradient(135deg, ${COLORS.blue} 0%, ${COLORS.blueLight} 100%)`,
+            marginBottom: '20px',
+          }}>
             <HiShieldCheck size={36} color={COLORS.white} />
           </div>
-          <h1
-            style={{
-              fontSize: 'clamp(24px, 4vw, 28px)',
-              fontWeight: 800,
-              color: COLORS.white,
-              marginBottom: '8px',
-            }}
-          >
-            Affordabledatahub Admin
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: COLORS.white, marginBottom: '8px' }}>
+            Admin Portal
           </h1>
           <p style={{ fontSize: '14px', color: COLORS.muted }}>
-            Sign in to access the admin dashboard
+            Sign in with your authorised Google account
           </p>
         </div>
 
-        {/* Login Form */}
-        <div
-          style={{
-            background: COLORS.surface,
-            border: `1.5px solid ${COLORS.border}`,
-            borderRadius: '16px',
-            padding: 'clamp(24px, 4vw, 32px)',
-          }}
-        >
-          <form onSubmit={handleSubmit}>
-            {/* Error Message */}
-            {error && (
-              <div
-                style={{
-                  padding: '12px 16px',
-                  background: '#f5323220',
-                  border: `1.5px solid ${COLORS.red}`,
-                  borderRadius: '8px',
-                  marginBottom: '20px',
-                }}
-              >
-                <p style={{ fontSize: '13px', color: COLORS.red, margin: 0 }}>
-                  {error}
-                </p>
-              </div>
+        {/* Card */}
+        <div style={{
+          background: COLORS.surface, border: `1.5px solid ${COLORS.border}`,
+          borderRadius: '16px', padding: '32px',
+        }}>
+
+          {error && (
+            <div style={{
+              padding: '12px 16px', marginBottom: '20px',
+              background: COLORS.red + '18', border: `1px solid ${COLORS.red}40`,
+              borderRadius: '8px',
+            }}>
+              <p style={{ fontSize: '13px', color: COLORS.red, margin: 0 }}>{error}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: '12px',
+              padding: '14px 20px', borderRadius: '10px',
+              border: `1.5px solid ${loading ? COLORS.border : COLORS.blue}`,
+              background: loading ? COLORS.surface : COLORS.blue + '12',
+              color: COLORS.white, fontSize: '15px', fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1, transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.background = COLORS.blue + '25' }}
+            onMouseLeave={e => { if (!loading) e.currentTarget.style.background = COLORS.blue + '12' }}
+          >
+            {loading ? (
+              <>
+                <span style={{
+                  width: '18px', height: '18px', borderRadius: '50%', display: 'inline-block',
+                  border: `2px solid ${COLORS.blue}40`, borderTop: `2px solid ${COLORS.blue}`,
+                  animation: 'spin 0.7s linear infinite',
+                }} />
+                Verifying...
+              </>
+            ) : (
+              <>
+                <FcGoogle size={22} />
+                Continue with Google
+              </>
             )}
+          </button>
 
-            {/* Email Field */}
-            <div style={{ marginBottom: '20px' }}>
-              <label
-                htmlFor="email"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: COLORS.muted,
-                  marginBottom: '8px',
-                }}
-              >
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="admin@affordabledatahub.com"
-                required
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  background: COLORS.bg,
-                  border: `1.5px solid ${COLORS.border}`,
-                  borderRadius: '8px',
-                  color: COLORS.white,
-                  fontSize: '14px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
-                onBlur={(e) => (e.target.style.borderColor = COLORS.border)}
-              />
-            </div>
-
-            {/* Password Field */}
-            <div style={{ marginBottom: '24px' }}>
-              <label
-                htmlFor="password"
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: COLORS.muted,
-                  marginBottom: '8px',
-                }}
-              >
-                Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Enter your password"
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    paddingRight: '48px',
-                    background: COLORS.bg,
-                    border: `1.5px solid ${COLORS.border}`,
-                    borderRadius: '8px',
-                    color: COLORS.white,
-                    fontSize: '14px',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = COLORS.blue)}
-                  onBlur={(e) => (e.target.style.borderColor = COLORS.border)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: COLORS.muted,
-                    cursor: 'pointer',
-                    padding: '4px',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  {showPassword ? <HiEyeSlash size={20} /> : <HiEye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: loading ? COLORS.faint : COLORS.blue,
-                border: 'none',
-                borderRadius: '8px',
-                color: COLORS.white,
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) e.currentTarget.style.background = COLORS.blueLight;
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) e.currentTarget.style.background = COLORS.blue;
-              }}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          {/* Footer */}
-          <div style={{ marginTop: '24px', textAlign: 'center' }}>
-            <p style={{ fontSize: '12px', color: COLORS.muted }}>
-              Protected by enterprise-grade security
-            </p>
-          </div>
-        </div>
-
-        {/* Additional Info */}
-        <div style={{ marginTop: '24px', textAlign: 'center' }}>
-          <p style={{ fontSize: '12px', color: COLORS.muted }}>
-            © 2026 Affordabledatahub. All rights reserved.
+          <p style={{ fontSize: '12px', color: COLORS.muted, textAlign: 'center', marginTop: '20px' }}>
+            Only authorised admin accounts can access this portal.
           </p>
         </div>
+
+        <p style={{ fontSize: '12px', color: COLORS.muted, textAlign: 'center', marginTop: '24px' }}>
+          © 2026 AffordableDataGH. All rights reserved.
+        </p>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
-  );
+  )
 }

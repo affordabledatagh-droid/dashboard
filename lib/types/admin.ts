@@ -25,7 +25,7 @@ export interface DataPurchase {
   time: string;
   customerName: string;
   phoneNumber: string;
-  network: 'MTN' | 'Telecel' | 'AirtelTigo';
+  network: 'MTN' | 'TELECEL' | 'AT PREMIUM';
   dataPackage: string;
   gbAmount: number;
   validity: string;
@@ -38,7 +38,7 @@ export interface DataPurchase {
 
 export interface DataPackage {
   id: string;
-  network: 'MTN' | 'Telecel' | 'AirtelTigo';
+  network: 'MTN' | 'TELECEL' | 'AT PREMIUM';
   packageName: string;
   dataSize: number;
   validity: string;
