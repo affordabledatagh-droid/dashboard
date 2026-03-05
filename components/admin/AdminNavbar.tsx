@@ -34,14 +34,19 @@ export default function AdminNavbar() {
   const pathname = usePathname();
     const router = useRouter();
 
-    const logoutAdmin = async () => {
-    try {
-      await signOut(auth);
-      router.push('/admin/login'); // redirect after logout
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
+const logoutAdmin = async () => {
+  try {
+    await signOut(auth);
+
+    // remove stored auth
+    localStorage.removeItem('admin_token');
+    document.cookie = 'admin_token=; path=/; max-age=0';
+
+    router.replace('/admin/login');
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
+};
 
   return (
     <nav
