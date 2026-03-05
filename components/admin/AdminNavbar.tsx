@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { COLORS } from '@/lib/constants/colors';
-import { useAdmin } from '@/lib/context/AdminContext';
 import {
   HiChartBarSquare,
   HiUsers,
@@ -16,6 +15,9 @@ import {
   HiXMark,
   HiArrowRightOnRectangle,
 } from 'react-icons/hi2';
+import { signOut } from 'firebase/auth';
+import {auth} from "../../lib/config/firebase"
+import { useRouter } from 'next/navigation';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: HiChartBarSquare },
@@ -30,7 +32,16 @@ const navItems = [
 export default function AdminNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { adminUser, logoutAdmin } = useAdmin();
+    const router = useRouter();
+
+    const logoutAdmin = async () => {
+    try {
+      await signOut(auth);
+      router.push('/admin/login'); // redirect after logout
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   return (
     <nav
@@ -88,14 +99,6 @@ export default function AdminNavbar() {
 
         {/* Admin Profile & Logout */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'none' }} className="desktop-profile">
-            <div style={{ fontSize: '13px', fontWeight: 600, color: COLORS.white, textAlign: 'right' }}>
-              {adminUser?.fullName}
-            </div>
-            <div style={{ fontSize: '11px', color: COLORS.muted, textAlign: 'right' }}>
-              {adminUser?.role.replace('_', ' ')}
-            </div>
-          </div>
           <button
             onClick={logoutAdmin}
             style={{
