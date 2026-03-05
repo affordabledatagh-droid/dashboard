@@ -29,38 +29,7 @@ export default function AdminDashboard() {
     });
 
     setRecentPurchases([
-      {
-        id: 'PUR001',
-        date: '2026-03-01',
-        time: '14:32',
-        customerName: 'Kwame Mensah',
-        phoneNumber: '0244123456',
-        network: 'MTN',
-        dataPackage: '1GB - 1 Day',
-        gbAmount: 1,
-        validity: '1 Day',
-        amount: 5.00,
-        agentName: 'Ama\'s Shop',
-        agentCode: 'AG001',
-        agentProfit: 0.50,
-        status: 'success',
-      },
-      {
-        id: 'PUR002',
-        date: '2026-03-01',
-        time: '14:28',
-        customerName: 'Abena Osei',
-        phoneNumber: '0551234567',
-        network: 'Telecel',
-        dataPackage: '2GB - 7 Days',
-        gbAmount: 2,
-        validity: '7 Days',
-        amount: 12.00,
-        agentName: 'Kofi Data Hub',
-        agentCode: 'AG002',
-        agentProfit: 1.20,
-        status: 'success',
-      },
+
     ]);
 
     setLoading(false);
@@ -123,7 +92,7 @@ export default function AdminDashboard() {
           icon={<HiCurrencyDollar size={32} />}
           trend={stats?.revenueTrend}
         />
-        <StatCard
+        {/* <StatCard
           label="Active Agents"
           value={stats?.activeAgents}
           accent={COLORS.yellow}
@@ -142,7 +111,7 @@ export default function AdminDashboard() {
           value={`GH₵ ${stats?.pendingWithdrawals.toLocaleString()}`}
           accent={COLORS.red}
           icon={<HiBanknotes size={32} />}
-        />
+        /> */}
       </div>
 
       {/* Recent Activity */}
