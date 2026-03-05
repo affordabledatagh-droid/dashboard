@@ -1,14 +1,15 @@
+// app/api/datamart/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 const API_BASE = 'https://api.datamartgh.shop/api/developer';
-const TOKEN = process.env.DATAMART_TOKEN || '';  // server-side only, no NEXT_PUBLIC_
+const TOKEN = process.env.DATAMART_TOKEN || '';
 
-export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxyRequest(req, params.path, 'GET');
+export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  return proxyRequest(req, (await params).path, 'GET');
 }
 
-export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxyRequest(req, params.path, 'POST');
+export async function POST(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  return proxyRequest(req, (await params).path, 'POST');
 }
 
 async function proxyRequest(req: NextRequest, pathSegments: string[], method: string) {
