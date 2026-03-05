@@ -20,10 +20,11 @@ import {
 const navItems = [
   { label: 'Dashboard', href: '/admin', icon: HiChartBarSquare },
   { label: 'Agents', href: '/admin/agents', icon: HiUsers },
-  { label: 'Purchases', href: '/admin/purchases', icon: HiShoppingCart },
   { label: 'Packages', href: '/admin/packages', icon: HiCube },
   { label: 'Withdrawals', href: '/admin/withdrawals', icon: HiCurrencyDollar },
-  { label: 'Analytics', href: '/admin/analytics', icon: HiChartPie },
+    { label: 'Purchases', href: '/admin/purchases', icon: HiShoppingCart },
+    { label: 'Bulk Purchase', href: '/admin/bulkpurhcase', icon: HiCurrencyDollar },
+  // { label: 'Analytics', href: '/admin/analytics', icon: HiChartPie },
 ];
 
 export default function AdminNavbar() {
