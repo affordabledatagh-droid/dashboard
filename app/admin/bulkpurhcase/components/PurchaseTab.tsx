@@ -50,41 +50,34 @@ export default function PurchaseTab() {
   const update = (id: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  // ── Parse paste: each line is "PHONE GB" e.g. "0542343324 4"
+  // Parse paste: each line is "PHONE GB"
   const importPaste = () => {
     const parsed: Row[] = [];
-
     paste.split('\n').forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
-
-      const parts = trimmed.split(/\s+/); // split on any whitespace
+      const parts = trimmed.split(/\s+/);
       const phone = parts[0];
-      const gb    = parts[1] || '1'; // default 1GB if not provided
-
+      const gb    = parts[1] || '1';
       if (phone) parsed.push(newRow(phone, gb));
     });
-
     if (parsed.length > 0) {
       setRows(parsed);
       setPaste('');
     }
   };
 
-  // ── Send one purchase — GB comes from the row itself
   const sendOne = async (row: Row) => {
     update(row.id, { status: 'pending', msg: '' });
-
     const res = await apiFetch('/purchase', {
       method: 'POST',
       body: JSON.stringify({
         phoneNumber: row.phone,
         network,
-        capacity: row.gb,   // ← each row has its own GB
+        capacity: row.gb,
         gateway: 'wallet',
       }),
     });
-
     if (res.status === 'success') {
       update(row.id, { status: 'ok', msg: `ref: ${res.data?.transactionReference}` });
     } else {
@@ -99,6 +92,27 @@ export default function PurchaseTab() {
       await new Promise((r) => setTimeout(r, 300));
     }
     setRunning(false);
+
+    // Tally results
+    setRows(prev => {
+      const total   = prev.length;
+      const success = prev.filter(r => r.status === 'ok').length;
+      const failed  = prev.filter(r => r.status === 'error').length;
+
+      // Show alert and clear on OK
+      const msg = failed === 0
+        ? `✅ All ${total} orders sent successfully!`
+        : `Done: ${success} sent, ${failed} failed.\n\nFailed rows are highlighted in red.`
+
+      window.alert(msg);
+
+      if (failed === 0) {
+        // All succeeded — clear everything
+        return [newRow()];
+      }
+      // Keep only failed rows so admin can retry
+      return prev.filter(r => r.status === 'error');
+    });
   };
 
   const completed = rows.filter((r) => r.status === 'ok').length;
@@ -107,6 +121,7 @@ export default function PurchaseTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <StatsTab/>
+
       {/* Network picker */}
       <div style={{ background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, borderRadius: 12, padding: 16 }}>
         <label style={{ fontSize: 12, color: COLORS.muted, display: 'block', marginBottom: 6, fontWeight: 600 }}>
@@ -124,8 +139,9 @@ export default function PurchaseTab() {
           Paste numbers
         </label>
         <p style={{ fontSize: 11, color: COLORS.muted, marginBottom: 8, marginTop: 0 }}>
-          Format: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 4 }}>PHONE GB</code> per line — e.g. <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 4 }}>0542343324 4</code>
-          &nbsp;means 4GB to that number. GB defaults to 1 if omitted.
+          Format: <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 4 }}>PHONE GB</code> per line —
+          e.g. <code style={{ background: '#0f172a', padding: '1px 6px', borderRadius: 4 }}>0542343324 4</code>.
+          GB defaults to 1 if omitted.
         </p>
         <textarea
           value={paste}
@@ -142,7 +158,6 @@ export default function PurchaseTab() {
 
       {/* Rows table */}
       <div style={{ background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, borderRadius: 12, overflow: 'hidden' }}>
-        {/* Header */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 36px 36px', gap: 8, padding: '10px 14px', fontSize: 11, fontWeight: 700, color: COLORS.muted, borderBottom: `1.5px solid ${COLORS.border}`, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
           <span>Phone Number</span>
           <span>GB</span>
@@ -150,7 +165,6 @@ export default function PurchaseTab() {
           <span />
         </div>
 
-        {/* Rows */}
         <div style={{ maxHeight: 340, overflowY: 'auto' }}>
           {rows.length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', color: COLORS.muted, fontSize: 13 }}>
@@ -181,7 +195,6 @@ export default function PurchaseTab() {
           ))}
         </div>
 
-        {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderTop: `1.5px solid ${COLORS.border}` }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <button onClick={() => setRows((p) => [...p, newRow()])} disabled={running}

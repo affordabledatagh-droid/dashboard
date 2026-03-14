@@ -55,6 +55,19 @@ function gbValue(dataSize: string | undefined): number {
   return parseFloat(dataSize) || 0
 }
 
+/**
+ * Normalise any Ghanaian phone number to 0XXXXXXXXX (10 digits, no spaces).
+ *   +233 54 23 54432  → 0542354432
+ *   233542354432      → 0542354432
+ *   054 23 544 32     → 0542354432
+ */
+function normalisePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('233')) return '0' + digits.slice(3)
+  if (digits.startsWith('0'))   return digits
+  return '0' + digits
+}
+
 function buildExportText(rows: Transaction[]): string {
   const groups: Record<string, Transaction[]> = {}
   for (const tx of rows) {
@@ -65,10 +78,17 @@ function buildExportText(rows: Transaction[]): string {
   return Object.entries(groups)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([network, txs]) => {
-      const lines = txs.map(tx => `${tx.phone_number} ${gbValue(tx.data_packages?.data_size)}`).join('\n')
+      const lines = txs.map(tx => `${normalisePhone(tx.phone_number)} ${gbValue(tx.data_packages?.data_size)}`).join('\n')
       return `=== ${network} ===\n${lines}`
     })
     .join('\n\n')
+}
+
+/** Flat "PHONE GB" lines — ready to paste into PurchaseTab's textarea */
+function buildPasteText(rows: Transaction[]): string {
+  return rows
+    .map(tx => `${normalisePhone(tx.phone_number)} ${gbValue(tx.data_packages?.data_size)}`)
+    .join('\n')
 }
 
 function downloadText(content: string, filename: string) {
@@ -80,12 +100,13 @@ function downloadText(content: string, filename: string) {
 }
 
 export default function PurchasesPage() {
-  const [tab,          setTab]          = useState<TabFilter>('placed')
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [acting,       setActing]       = useState(false)   // covers both export+process and mark-delivered
-  const [search,       setSearch]       = useState('')
-  const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null)
+  const [tab,           setTab]           = useState<TabFilter>('placed')
+  const [transactions,  setTransactions]  = useState<Transaction[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [acting,        setActing]        = useState(false)
+  const [search,        setSearch]        = useState('')
+  const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null)
+  const [exportedPaste, setExportedPaste] = useState<string | null>(null)
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok })
@@ -95,6 +116,7 @@ export default function PurchasesPage() {
   const load = async (orderStatus: TabFilter) => {
     setLoading(true)
     setSearch('')
+    setExportedPaste(null)
     try {
       const { data } = await adminApi.getTransactions(orderStatus)
       setTransactions(data)
@@ -117,13 +139,15 @@ export default function PurchasesPage() {
     )
   }, [transactions, search])
 
-  // Placed tab: export file → bulk move to processing
   const handleExportAndProcess = async () => {
     if (!transactions.length) return
     setActing(true)
     try {
-      const content = buildExportText(transactions)
-      downloadText(content, `orders-placed-${new Date().toISOString().slice(0, 10)}.txt`)
+      // 1. Download grouped export file
+      downloadText(buildExportText(transactions), `orders-placed-${new Date().toISOString().slice(0, 10)}.txt`)
+      // 2. Build paste-ready text and show it in the copy box
+      setExportedPaste(buildPasteText(transactions))
+      // 3. Move all to processing
       const ids = transactions.map(tx => tx.id)
       await adminApi.bulkUpdateStatus(ids, 'processing')
       showToast(`Exported ${ids.length} orders and moved to Processing`)
@@ -135,7 +159,6 @@ export default function PurchasesPage() {
     }
   }
 
-  // Processing tab: bulk move to delivered (no export needed)
   const handleMarkAllDelivered = async () => {
     if (!transactions.length) return
     setActing(true)
@@ -162,35 +185,31 @@ export default function PurchasesPage() {
       const disabled = acting || transactions.length === 0
       return (
         <button onClick={handleExportAndProcess} disabled={disabled} style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
           padding: '10px 18px', borderRadius: '8px', border: 'none',
           background: disabled ? COLORS.surface : COLORS.blue,
           color: disabled ? COLORS.muted : COLORS.white,
           fontSize: '13px', fontWeight: 600,
-          cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+          cursor: disabled ? 'not-allowed' : 'pointer',
         }}>
           {acting ? 'Exporting...' : `Export & Mark Processing (${transactions.length})`}
         </button>
       )
     }
-
     if (tab === 'processing') {
       const disabled = acting || transactions.length === 0
       return (
         <button onClick={handleMarkAllDelivered} disabled={disabled} style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
           padding: '10px 18px', borderRadius: '8px', border: 'none',
           background: disabled ? COLORS.surface : '#22c55e',
           color: disabled ? COLORS.muted : '#0f1013',
           fontSize: '13px', fontWeight: 700,
-          cursor: disabled ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+          cursor: disabled ? 'not-allowed' : 'pointer',
         }}>
           {acting ? 'Updating...' : `✓ Mark All Delivered (${transactions.length})`}
         </button>
       )
     }
-
-    return null  // delivered tab — no action needed
+    return null
   }
 
   return (
@@ -219,6 +238,47 @@ export default function PurchasesPage() {
         </div>
         <ActionButton />
       </div>
+
+      {/* ── Paste-ready export box ── */}
+      {exportedPaste && (
+        <div style={{
+          marginBottom: '24px', padding: '16px',
+          background: '#22c55e0a', border: '1.5px solid #22c55e40', borderRadius: '12px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#22c55e', margin: 0 }}>
+                ✅ Ready to paste into Bulk Purchase
+              </p>
+              <p style={{ fontSize: '11px', color: COLORS.muted, margin: '3px 0 0' }}>
+                All numbers normalised to 0XXXXXXXXX · Copy and paste into the Bulk Purchase tab
+              </p>
+            </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(exportedPaste!); showToast('Copied to clipboard!') }}
+              style={{
+                padding: '8px 16px', borderRadius: '8px', border: 'none',
+                background: '#22c55e', color: '#0f1013',
+                fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Copy All
+            </button>
+          </div>
+          <textarea
+            readOnly
+            value={exportedPaste}
+            rows={Math.min(exportedPaste.split('\n').length + 1, 12)}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              background: '#0f1013', border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px', padding: '10px 12px',
+              color: COLORS.white, fontFamily: 'monospace', fontSize: '12px',
+              resize: 'vertical', lineHeight: 1.8, outline: 'none',
+            }}
+          />
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
@@ -283,7 +343,9 @@ export default function PurchasesPage() {
                       <span style={{ fontSize: '13px', color: COLORS.white }}>{formatDate(tx.created_at)}</span>
                     </td>
                     <td style={{ padding: '12px 14px', borderBottom: `1px solid ${COLORS.border}` }}>
-                      <span style={{ fontSize: '13px', color: COLORS.white, fontFamily: 'monospace' }}>{tx.phone_number}</span>
+                      <span style={{ fontSize: '13px', color: COLORS.white, fontFamily: 'monospace' }}>
+                        {normalisePhone(tx.phone_number)}
+                      </span>
                     </td>
                     <td style={{ padding: '12px 14px', borderBottom: `1px solid ${COLORS.border}` }}>
                       <NetworkBadge network={tx.data_packages?.network ?? '—'} />
