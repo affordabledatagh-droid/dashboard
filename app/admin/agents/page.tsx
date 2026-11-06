@@ -7,6 +7,8 @@ import Toast from '@/components/admin/Toast'
 import { BarChart, dayLabel } from '@/components/admin/Charts'
 import { adminApi, AgentDetail, AgentRow, AgentsPage as AgentsResult } from '@/lib/utils/adminApi'
 import { TEMPLATES, suggestTemplate, templateContext, whatsappLink } from '@/lib/utils/whatsapp'
+import { daysSinceContacted, keyOf, markContacted } from '@/lib/utils/contacted'
+import BulkMessageModal from '@/components/admin/BulkMessageModal'
 import { money, ago, dateTime } from '@/lib/utils/format'
 import { HiChevronUp, HiChevronDown, HiMagnifyingGlass, HiChevronLeft, HiChevronRight } from 'react-icons/hi2'
 import { FaWhatsapp } from 'react-icons/fa'
@@ -46,6 +48,10 @@ export default function AgentsPage() {
   const [pageSize, setPageSize] = useState(25)
   const [open, setOpen] = useState<AgentRow | null>(null)
   const [messaging, setMessaging] = useState<AgentRow | null>(null)
+  const [selected, setSelected] = useState<Map<string, AgentRow>>(new Map())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [selecting, setSelecting] = useState(false)
+  const [, bump] = useState(0)   // re-render after messaging so "Messaged Xd ago" tags refresh
   const [toast, setToast] = useState({ message: '', type: 'success' as 'success' | 'error' | 'info', visible: false })
   const show = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => setToast({ message, type, visible: true }), [])
 
@@ -63,6 +69,23 @@ export default function AgentsPage() {
   useEffect(() => { load() }, [load])
 
   const rows = data?.rows ?? []
+
+  const toggleOne = (r: AgentRow) => setSelected(m => { const n = new Map(m); const k = keyOf(r.type, r.id); n.has(k) ? n.delete(k) : n.set(k, r); return n })
+  const pageAllSelected = rows.length > 0 && rows.every(r => selected.has(keyOf(r.type, r.id)))
+  const togglePage = () => setSelected(m => {
+    const n = new Map(m)
+    rows.forEach(r => pageAllSelected ? n.delete(keyOf(r.type, r.id)) : n.set(keyOf(r.type, r.id), r))
+    return n
+  })
+  // Everyone matching the current filters (with a WhatsApp number), fetched only when asked
+  const selectAllMatching = async () => {
+    setSelecting(true)
+    try {
+      const res = (await adminApi.getAgentContacts({ scope, q: debounced, activity, sort: sort.key, dir: sort.dir })).data
+      setSelected(new Map(res.rows.map(r => [keyOf(r.type, r.id), r])))
+      show(`Selected ${res.rows.length} with a WhatsApp number${res.capped ? ' (limit 500)' : ''}`, 'info')
+    } catch (e: any) { show(e.message, 'error') } finally { setSelecting(false) }
+  }
 
   const sortBy = (key: SortKey) => setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'shopName' ? 'asc' : 'desc' })
   const Th = ({ k, children, right }: { k?: SortKey; children: React.ReactNode; right?: boolean }) => (
@@ -105,6 +128,23 @@ export default function AgentsPage() {
         <span style={{ fontSize: 12, color: COLORS.muted }}>{data ? `${data.total.toLocaleString()} match` : ''}</span>
       </div>
 
+      {(selected.size > 0 || (pageAllSelected && data && data.total > rows.length)) && (
+        <div style={{ position: 'sticky', top: 64, zIndex: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', marginBottom: 12, background: COLORS.surface, border: `1.5px solid ${COLORS.blue}`, borderRadius: 12 }}>
+          <div style={{ fontSize: 13, color: COLORS.white }}>
+            <strong>{selected.size}</strong> selected
+            {pageAllSelected && data && data.total > rows.length && selected.size < data.total && (
+              <button onClick={selectAllMatching} disabled={selecting} style={{ marginLeft: 10, background: 'none', border: 'none', color: COLORS.blueLight, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                {selecting ? 'Selecting…' : `Select all ${data.total.toLocaleString()} matching`}
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setSelected(new Map())} style={{ ...btn(COLORS.faint) }}>Clear</button>
+            <button onClick={() => setBulkOpen(true)} disabled={selected.size === 0} style={{ ...btn('#1fa855'), opacity: selected.size ? 1 : 0.5 }}><FaWhatsapp size={15} /> Message {selected.size}</button>
+          </div>
+        </div>
+      )}
+
       <div style={{ background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, borderRadius: 14, overflow: 'hidden' }}>
         {!data ? (
           <div style={{ padding: 20, display: 'grid', gap: 10 }}>{Array.from({ length: 8 }, (_, i) => <div key={i} className="skeleton" style={{ height: 48, borderRadius: 8 }} />)}</div>
@@ -112,6 +152,7 @@ export default function AgentsPage() {
           <div style={{ overflowX: 'auto', opacity: loading ? 0.5 : 1, transition: 'opacity .15s' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1040 }}>
               <thead><tr style={{ background: COLORS.bg }}>
+                <th style={{ padding: '11px 12px', width: 36 }}><input type="checkbox" checked={pageAllSelected} onChange={togglePage} aria-label="Select this page" style={{ width: 16, height: 16, cursor: 'pointer' }} /></th>
                 <Th k="shopName">Shop</Th><Th>Type</Th><Th k="orders" right>Orders</Th><Th k="sales" right>Sales</Th><Th k="profit" right>Profit</Th>
                 <Th k="walletBalance" right>Wallet</Th><Th k="customers" right>Customers</Th><Th k="lastOrderAt">Last order</Th><Th k="joined">Joined</Th><Th>Message</Th>
               </tr></thead>
@@ -119,6 +160,9 @@ export default function AgentsPage() {
                 {rows.map(r => (
                   <tr key={`${r.type}:${r.id}`} onClick={() => setOpen(r)} style={{ borderTop: `1px solid ${COLORS.border}`, cursor: 'pointer' }}
                     onMouseEnter={e => (e.currentTarget.style.background = COLORS.bg)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <td style={{ ...cell, width: 36 }} onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selected.has(keyOf(r.type, r.id))} onChange={() => toggleOne(r)} aria-label={`Select ${r.shopName}`} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    </td>
                     <td style={cell}>
                       <div style={{ fontWeight: 700, color: COLORS.white }}>{r.shopName}</div>
                       <div style={{ fontSize: 11, color: COLORS.muted }}>{r.agentCode}{r.parentShop ? ` · under ${r.parentShop}` : ''}{r.name ? ` · ${r.name}` : ''}</div>
@@ -126,6 +170,7 @@ export default function AgentsPage() {
                         {r.lowBalance && <span style={chip(COLORS.yellow)}>RUNNING DRY</span>}
                         {r.inactiveDays === null && <span style={chip(COLORS.muted)}>NEVER SOLD</span>}
                         {r.inactiveDays !== null && r.inactiveDays !== undefined && r.inactiveDays > 30 && <span style={chip(COLORS.red)}>QUIET {r.inactiveDays}D</span>}
+                        {(() => { const d = daysSinceContacted(r.type, r.id); return d === null ? null : <span style={chip(COLORS.blueLight)}>MESSAGED {d === 0 ? 'TODAY' : `${d}D AGO`}</span> })()}
                       </div>
                     </td>
                     <td style={cell}><span style={chip(r.type === 'agent' ? COLORS.blueLight : COLORS.yellow)}>{r.type === 'agent' ? 'AGENT' : 'SUB-AGENT'}</span>{r.type === 'agent' && !!r.subAgents && <span style={{ fontSize: 11, color: COLORS.muted, marginLeft: 6 }}>{r.subAgents} subs</span>}</td>
@@ -147,7 +192,7 @@ export default function AgentsPage() {
                     </td>
                   </tr>
                 ))}
-                {rows.length === 0 && <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: COLORS.muted }}>No one matches these filters.</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={11} style={{ padding: 40, textAlign: 'center', color: COLORS.muted }}>No one matches these filters.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -161,7 +206,8 @@ export default function AgentsPage() {
       )}
 
       {open && <Detail row={open} onClose={() => setOpen(null)} onChanged={load} show={show} onMessage={() => { setMessaging(open); }} />}
-      {messaging && <MessageModal row={messaging} onClose={() => setMessaging(null)} show={show} />}
+      {messaging && <MessageModal row={messaging} onClose={() => { setMessaging(null); bump(n => n + 1) }} show={show} />}
+      {bulkOpen && <BulkMessageModal rows={[...selected.values()]} onClose={() => { setBulkOpen(false); bump(n => n + 1) }} onProgress={() => bump(n => n + 1)} />}
     </div>
   )
 }
@@ -410,7 +456,7 @@ function MessageModal({ row, onClose, show }: { row: AgentRow; onClose: () => vo
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {link ? (
-            <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => setTimeout(onClose, 150)}
+            <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => { markContacted(row.type, row.id); setTimeout(onClose, 150) }}
               style={{ ...btn('#1fa855'), flex: '1 1 200px', textDecoration: 'none' }}><FaWhatsapp size={16} /> Open in WhatsApp</a>
           ) : (
             <button disabled style={{ ...btn('#1fa855'), flex: '1 1 200px', opacity: 0.4, cursor: 'not-allowed' }}><FaWhatsapp size={16} /> No number</button>

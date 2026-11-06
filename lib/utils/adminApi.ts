@@ -94,6 +94,7 @@ export interface AgentRow {
   inactiveDays?: number | null; lowBalance?: boolean
 }
 export interface AgentsQuery { scope: string; q: string; activity: string; sort: string; dir: string; page: number; pageSize: number }
+export interface AgentContacts { rows: AgentRow[]; matching: number; withNumber: number; capped: boolean }
 export interface AgentsPage {
   rows: AgentRow[]; total: number; page: number; pageSize: number; pages: number
   totals: { agents: number; subAgents: number; walletBalance: number; profit: number; pendingWithdrawal: number; activeLast30: number; lowBalance: number }
@@ -138,6 +139,7 @@ export const adminApi = {
 
   // Agents
   getAgents:       (q: AgentsQuery)                => request<{ data: AgentsPage }>(`/admin/agents?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`),
+  getAgentContacts: (q: Omit<AgentsQuery, 'page' | 'pageSize'>) => request<{ data: AgentContacts }>(`/admin/agents/contacts?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`),
   getAgentDetail:  (type: string, id: string)      => request<{ data: AgentDetail }>(`/admin/agents/${type}/${id}`),
   initiateWithdrawal: (type: string, id: string, body: { amount: number; phone: string; network: string }) =>
     request<{ data: WithdrawalRow }>(`/admin/agents/${type}/${id}/withdrawals`, json('POST', body)),
