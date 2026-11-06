@@ -32,3 +32,14 @@ a {
 button {
   font-family: inherit;
 }
+
+/* Loading placeholders */
+.skeleton {
+  background: linear-gradient(90deg, #16181d 25%, #1f2229 37%, #16181d 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@media (max-width: 520px) { .hide-xs { display: none; } }

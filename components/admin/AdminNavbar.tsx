@@ -10,7 +10,7 @@ import {
   HiShoppingCart,
   HiCube,
   HiCurrencyDollar,
-  HiChartPie,
+  HiBanknotes,
   HiBars3,
   HiXMark,
   HiArrowRightOnRectangle,
@@ -20,13 +20,12 @@ import {auth} from "../../lib/config/firebase"
 import { useRouter } from 'next/navigation';
 
 const navItems = [
-  { label: 'Dashboard', href: '/admin', icon: HiChartBarSquare },
+  { label: 'Overview', href: '/admin', icon: HiChartBarSquare },
   { label: 'Agents', href: '/admin/agents', icon: HiUsers },
   { label: 'Packages', href: '/admin/packages', icon: HiCube },
+  { label: 'Purchases', href: '/admin/purchases', icon: HiShoppingCart },
   { label: 'Withdrawals', href: '/admin/withdrawals', icon: HiCurrencyDollar },
-    { label: 'Purchases', href: '/admin/purchases', icon: HiShoppingCart },
-    { label: 'Bulk Purchase', href: '/admin/bulkpurhcase', icon: HiCurrencyDollar },
-  // { label: 'Analytics', href: '/admin/analytics', icon: HiChartPie },
+  { label: 'Bulk Purchase', href: '/admin/bulk-purchase', icon: HiBanknotes },
 ];
 
 export default function AdminNavbar() {

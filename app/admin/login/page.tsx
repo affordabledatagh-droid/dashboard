@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth'
 import {auth} from "../../../lib/config/firebase"
 import { COLORS } from '@/lib/constants/colors'
+import { readJson } from '@/lib/utils/adminApi'
 import { HiShieldCheck } from 'react-icons/hi2'
 import { FcGoogle } from 'react-icons/fc'
 
@@ -21,6 +22,8 @@ export default function AdminLoginPage() {
       const result   = await signInWithPopup(auth, provider)
       const idToken  = await result.user.getIdToken()
 
+      if (!process.env.NEXT_PUBLIC_API_URL) throw new Error('NEXT_PUBLIC_API_URL is not set. Add it to dashboard/.env.local and restart the dashboard.')
+
       // Verify with backend — checks role = 'admin' in Supabase
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/login`, {
         method:  'POST',
@@ -28,7 +31,7 @@ export default function AdminLoginPage() {
         body:    JSON.stringify({ idToken }),
       })
 
-      const body = await res.json()
+      const body = await readJson(res)
 
       if (!res.ok) {
         // Sign out of Firebase if they're not an admin
