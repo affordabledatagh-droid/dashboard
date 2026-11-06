@@ -55,26 +55,33 @@ export interface Pricing {
   summary: { total: number; active: number; below: number; unavailable: number; alerts: number; unlisted: number }
 }
 
+export type Period = 'today' | 'yesterday' | 'week' | 'lastweek' | 'month' | 'lastmonth'
+export type Metric = 'profit' | 'sales' | 'orders'
+
+export interface RangeInfo { period: Period; from: string; to: string; label: string; daysLabel: string; isFinished: boolean }
 export interface DailyPoint { date: string; orders: number; delivered: number; revenue: number; agentProfit: number; platformSales: number }
-export interface Earner {
-  type: 'agent' | 'sub_agent'; id: string; shopName: string; agentCode: string; parentShop: string | null
-  orders: number; profit: number; daily: { date: string; profit: number }[]
-}
-export interface Analytics {
-  days: number
+export interface Summary {
+  range: RangeInfo
   totals: { orders: number; revenue: number; agentProfit: number; platformSales: number; estimatedMargin: number | null; avgOrder: number }
-  today: DailyPoint; yesterday: DailyPoint | null
   daily: DailyPoint[]
-  topEarners: Earner[]; topAgents: Earner[]; topSubAgents: Earner[]
+}
+export interface LeaderCard { type: 'agent' | 'sub_agent'; id: string; shopName: string; agentCode: string; orders: number; sales: number; profit: number; trend?: { date: string; value: number }[] }
+export interface Leaders {
+  range: Omit<RangeInfo, 'isFinished'>; metric: Metric
+  top: LeaderCard[]; totalPeople: number
+  byDay: { date: string; top: LeaderCard[] }[]
+}
+export interface Breakdown {
+  range: { period: Period; label: string }
   byNetwork: { network: string; orders: number; revenue: number }[]
   topPackages: { name: string; orders: number; revenue: number }[]
   byMethod: Record<string, number>
   byStatus: Record<string, number>
-  attention: {
-    placed: number; processing: number; rejected: number
-    pendingWithdrawals: number; pendingWithdrawalAmount: number
-    fulfilmentErrors: number; pricingAlerts: number; belowMhany: number
-  }
+}
+export interface Attention {
+  placed: number; processing: number; rejected: number
+  pendingWithdrawals: number; pendingWithdrawalAmount: number
+  fulfilmentErrors: number; pricingAlerts: number; belowMhany: number
   mhanyBalance: { username: string; balance: number; currency: string; status: string } | null
 }
 
@@ -84,10 +91,12 @@ export interface AgentRow {
   orders: number; sales: number; profit: number; lastOrderAt: string | null
   customers: number; pendingWithdrawal: number; withdrawn: number
   subAgents?: number; parentId?: string; parentShop?: string | null
+  inactiveDays?: number | null; lowBalance?: boolean
 }
-export interface AgentsList {
-  agents: AgentRow[]; subAgents: AgentRow[]
-  totals: { agents: number; subAgents: number; walletBalance: number; profit: number; pendingWithdrawal: number; activeLast30: number }
+export interface AgentsQuery { scope: string; q: string; activity: string; sort: string; dir: string; page: number; pageSize: number }
+export interface AgentsPage {
+  rows: AgentRow[]; total: number; page: number; pageSize: number; pages: number
+  totals: { agents: number; subAgents: number; walletBalance: number; profit: number; pendingWithdrawal: number; activeLast30: number; lowBalance: number }
 }
 export interface WithdrawalRow {
   id: string; status: 'pending' | 'success' | 'failed'; type: 'agent' | 'sub_agent'
@@ -122,10 +131,13 @@ export const adminApi = {
   savePrices:   (updates: { id: string; admin_price: number }[])    => request<{ data: { id: string; admin_price: number }[] }>('/admin/pricing', json('PATCH', { updates })),
 
   // Analytics
-  getAnalytics: (days: number) => request<{ data: Analytics }>(`/admin/analytics?days=${days}`),
+  getSummary:   (period: Period)                  => request<{ data: Summary }>(`/admin/analytics/summary?period=${period}`),
+  getLeaders:   (period: Period, metric: Metric)  => request<{ data: Leaders }>(`/admin/analytics/leaders?period=${period}&metric=${metric}`),
+  getBreakdown: (period: Period)                  => request<{ data: Breakdown }>(`/admin/analytics/breakdown?period=${period}`),
+  getAttention: ()                                => request<{ data: Attention }>('/admin/attention'),
 
   // Agents
-  getAgents:       ()                              => request<{ data: AgentsList }>('/admin/agents'),
+  getAgents:       (q: AgentsQuery)                => request<{ data: AgentsPage }>(`/admin/agents?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`),
   getAgentDetail:  (type: string, id: string)      => request<{ data: AgentDetail }>(`/admin/agents/${type}/${id}`),
   initiateWithdrawal: (type: string, id: string, body: { amount: number; phone: string; network: string }) =>
     request<{ data: WithdrawalRow }>(`/admin/agents/${type}/${id}/withdrawals`, json('POST', body)),

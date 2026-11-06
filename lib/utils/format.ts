@@ -12,3 +12,7 @@ export const ago = (iso: string | null) => {
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5)
   return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d} days ago`
 }
+
+/** "Mon 3" style label for chart axes: weekday matters now that weeks are Monday to Sunday. */
+export const weekdayLabel = (iso: string) =>
+  new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', timeZone: 'UTC' })
