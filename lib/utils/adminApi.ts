@@ -1,8 +1,25 @@
 // lib/utils/adminApi.ts
+import { auth } from '@/lib/config/firebase'
+
 const BASE = process.env.NEXT_PUBLIC_API_URL
 
-function getToken(): string {
+/**
+ * A valid Firebase token for every request. Firebase tokens only last an hour, so reading the one saved
+ * at login (localStorage) fails with 401 after a tab has been open a while, or right after returning to
+ * the dashboard. Asking Firebase directly refreshes it automatically when it is close to expiring.
+ */
+async function getToken(forceRefresh = false): Promise<string> {
   if (typeof window === 'undefined') return ''
+  try {
+    await auth.authStateReady()
+    const user = auth.currentUser
+    if (user) {
+      const token = await user.getIdToken(forceRefresh)
+      localStorage.setItem('admin_token', token)
+      document.cookie = `admin_token=${token}; path=/; max-age=86400; SameSite=Strict`
+      return token
+    }
+  } catch { /* fall through to the saved token */ }
   return localStorage.getItem('admin_token') ?? ''
 }
 
@@ -18,16 +35,18 @@ export async function readJson(res: Response): Promise<any> {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   if (!BASE) throw new Error('NEXT_PUBLIC_API_URL is not set. Add it to dashboard/.env.local and restart the dashboard.')
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
+      Authorization: `Bearer ${await getToken(retried)}`,
       ...(options.headers ?? {}),
     },
   })
+  // Rejected token: get a brand-new one from Firebase and try once more before giving up
+  if (res.status === 401 && !retried) return request<T>(path, options, true)
   const body = await readJson(res)
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
   return body
@@ -159,6 +178,7 @@ export const adminApi = {
   mhanyBundles: (refresh = false) => request<{ data: MhanyBundle[] }>(`/admin/mhany/bundles${refresh ? '?refresh=1' : ''}`),
   mhanyBalance: ()                => request<{ data: { username: string; balance: number; currency: string; status: string } }>('/admin/mhany/balance'),
   mhanyOrders:  ()                => request<{ data: MhanyOrder[] | MhanyOrder }>('/admin/mhany/orders'),
+  mhanyOrderById: (id: string)    => request<{ data: MhanyOrder[] | MhanyOrder }>(`/admin/mhany/orders?id=${encodeURIComponent(id)}`),
   mhanyVerify:  (number: string)  => request<{ data: { success: boolean; status: string; message: string } }>(`/admin/mhany/verify?number=${encodeURIComponent(number)}`),
   mhanyBulkPurchase: (items: { bundleId: string; number: string }[]) =>
     request<{ data: { requested: number; sent: number; failed: number; notAttempted: number; results: BulkResult[] } }>('/admin/mhany/bulk-purchase', json('POST', { items })),

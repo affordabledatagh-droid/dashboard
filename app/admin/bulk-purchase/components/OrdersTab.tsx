@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { COLORS } from '@/lib/constants/colors';
-import { adminApi, MhanyOrder, readJson } from '@/lib/utils/adminApi';
+import { adminApi, MhanyOrder } from '@/lib/utils/adminApi';
 import { money, dateTime } from '@/lib/utils/format';
 
 const STATUS: Record<string, string> = { DELIVERED: '#22c55e', PROCESSING: COLORS.yellow, REJECTED: COLORS.red };
@@ -18,8 +18,7 @@ export default function OrdersTab() {
   const load = useCallback(async (id?: string) => {
     setLoading(true); setError('');
     try {
-      const res = id ? await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/mhany/orders?id=${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${localStorage.getItem('admin_token') ?? ''}` } }).then(readJson) : await adminApi.mhanyOrders();
-      if (res.error) throw new Error(res.error);
+      const res = id ? await adminApi.mhanyOrderById(id) : await adminApi.mhanyOrders();
       setOrders(Array.isArray(res.data) ? res.data : res.data ? [res.data] : []);
     } catch (e: any) { setError(e.message); setOrders([]); } finally { setLoading(false); }
   }, []);
