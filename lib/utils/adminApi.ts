@@ -106,6 +106,7 @@ export interface Attention {
 
 export interface AgentRow {
   type: 'agent' | 'sub_agent'; id: string; name: string | null; shopName: string; agentCode: string
+  email: string | null
   whatsapp: string | null; walletBalance: number; joined: string
   orders: number; sales: number; profit: number; lastOrderAt: string | null
   customers: number; pendingWithdrawal: number; withdrawn: number
@@ -160,6 +161,7 @@ export const adminApi = {
   getAgents:       (q: AgentsQuery)                => request<{ data: AgentsPage }>(`/admin/agents?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`),
   getAgentContacts: (q: Omit<AgentsQuery, 'page' | 'pageSize'>) => request<{ data: AgentContacts }>(`/admin/agents/contacts?${new URLSearchParams(Object.entries(q).map(([k, v]) => [k, String(v)]))}`),
   getAgentDetail:  (type: string, id: string)      => request<{ data: AgentDetail }>(`/admin/agents/${type}/${id}`),
+  promoteSubAgent: (id: string) => request<{ data: { id: string; email: string; shopName: string; agentCode: string } }>(`/admin/agents/sub_agent/${encodeURIComponent(id)}/promote`, json('POST')),
   initiateWithdrawal: (type: string, id: string, body: { amount: number; phone: string; network: string }) =>
     request<{ data: WithdrawalRow }>(`/admin/agents/${type}/${id}/withdrawals`, json('POST', body)),
 

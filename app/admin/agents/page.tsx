@@ -123,7 +123,7 @@ export default function AgentsPage() {
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, borderRadius: 8, padding: '0 10px', flex: '1 1 220px', maxWidth: 340 }}>
           <HiMagnifyingGlass size={16} color={COLORS.muted} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search shop, code, number" style={{ ...field, border: 'none', background: 'transparent', padding: '9px 0' }} />
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search email, ID, shop or code" aria-label="Search agents by email, ID, shop or code" style={{ ...field, border: 'none', background: 'transparent', padding: '9px 0' }} />
         </div>
         <span style={{ fontSize: 12, color: COLORS.muted }}>{data ? `${data.total.toLocaleString()} match` : ''}</span>
       </div>
@@ -205,7 +205,7 @@ export default function AgentsPage() {
         <Pager page={data.page} pages={data.pages} total={data.total} pageSize={data.pageSize} onPage={setPage} onSize={setPageSize} busy={loading} />
       )}
 
-      {open && <Detail row={open} onClose={() => setOpen(null)} onChanged={load} show={show} onMessage={() => { setMessaging(open); }} />}
+      {open && <Detail row={open} onClose={() => setOpen(null)} onChanged={load} onPromoted={() => { setOpen(null); setSelected(new Map()); load() }} show={show} onMessage={() => { setMessaging(open); }} />}
       {messaging && <MessageModal row={messaging} onClose={() => { setMessaging(null); bump(n => n + 1) }} show={show} />}
       {bulkOpen && <BulkMessageModal rows={[...selected.values()]} onClose={() => { setBulkOpen(false); bump(n => n + 1) }} onProgress={() => bump(n => n + 1)} />}
     </div>
@@ -216,14 +216,27 @@ const cell: React.CSSProperties = { padding: '11px 12px', fontSize: 13, color: C
 
 // ── Detail modal ──────────────────────────────────────────────────
 
-function Detail({ row, onClose, onChanged, show, onMessage }: { row: AgentRow; onClose: () => void; onChanged: () => void; show: (m: string, t?: 'success' | 'error' | 'info') => void; onMessage: () => void }) {
+function Detail({ row, onClose, onChanged, onPromoted, show, onMessage }: { row: AgentRow; onClose: () => void; onChanged: () => void; onPromoted: () => void; show: (m: string, t?: 'success' | 'error' | 'info') => void; onMessage: () => void }) {
   const [d, setD] = useState<AgentDetail | null>(null)
   const [err, setErr] = useState('')
+  const [confirmPromotion, setConfirmPromotion] = useState(false)
+  const [promoting, setPromoting] = useState(false)
   const reload = useCallback(() => adminApi.getAgentDetail(row.type, row.id).then(r => setD(r.data)).catch(e => setErr(e.message)), [row])
   useEffect(() => { reload() }, [reload])
 
   const p = d?.profile ?? row
   const wa = p.whatsapp ? `https://wa.me/${p.whatsapp.replace(/\D/g, '')}` : null
+
+  const promote = async () => {
+    setPromoting(true); setErr('')
+    try {
+      await adminApi.promoteSubAgent(row.id)
+      show(`${row.shopName} is now an agent.`)
+      onPromoted()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Promotion failed')
+    } finally { setPromoting(false) }
+  }
 
   return (
     <Modal isOpen onClose={onClose} title={`${row.shopName} · ${row.type === 'agent' ? 'Agent' : 'Sub-agent'}`} maxWidth="920px">
@@ -242,6 +255,8 @@ function Detail({ row, onClose, onChanged, show, onMessage }: { row: AgentRow; o
 
         <div style={{ fontSize: 12, color: COLORS.muted, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <span>Code <strong style={{ color: COLORS.white }}>{p.agentCode}</strong></span>
+          <span>ID <strong style={{ color: COLORS.white }}>{p.id}</strong></span>
+          {p.email && <span>Email <strong style={{ color: COLORS.white }}>{p.email}</strong></span>}
           {p.name && <span>Name <strong style={{ color: COLORS.white }}>{p.name}</strong></span>}
           {p.parentShop && <span>Under <strong style={{ color: COLORS.white }}>{p.parentShop}</strong></span>}
           <span>Joined {new Date(p.joined).toLocaleDateString('en-GB')}</span>
@@ -249,6 +264,26 @@ function Detail({ row, onClose, onChanged, show, onMessage }: { row: AgentRow; o
           {wa ? <a href={wa} target="_blank" rel="noopener noreferrer" style={{ color: GREEN, fontWeight: 700 }}>WhatsApp {p.whatsapp}</a> : <span>No WhatsApp number</span>}
           <button onClick={onMessage} style={{ background: 'none', border: 'none', color: '#25d366', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 12 }}>Send a check-in message</button>
         </div>
+
+        {row.type === 'sub_agent' && (
+          <section style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14 }}>
+            <h3 style={h3}>Promote to agent</h3>
+            <p style={{ ...muted, marginBottom: 10 }}>
+              The shop link, customer prices, wallet, customers and order history are retained. Future sales will no longer earn the current parent a commission. Ask the account holder to refresh or sign in again.
+            </p>
+            {!confirmPromotion ? (
+              <button onClick={() => setConfirmPromotion(true)} style={btn(COLORS.blue)}>Promote to agent</button>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <span style={{ ...muted, flex: '1 1 100%' }}>Confirm promotion for {p.email || p.id}?</span>
+                <button onClick={promote} disabled={promoting} style={{ ...btn(COLORS.blue), opacity: promoting ? 0.6 : 1 }}>
+                  {promoting ? 'Promoting…' : 'Confirm promotion'}
+                </button>
+                <button onClick={() => setConfirmPromotion(false)} disabled={promoting} style={btn(COLORS.faint)}>Cancel</button>
+              </div>
+            )}
+          </section>
+        )}
 
         <section>
           <h3 style={h3}>Profit per day (30 days)</h3>
