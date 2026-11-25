@@ -4,7 +4,8 @@ import { memo, useMemo, useState } from 'react';
 import { COLORS } from '@/lib/constants/colors';
 import { adminApi, MhanyBundle } from '@/lib/utils/adminApi';
 import { money } from '@/lib/utils/format';
-import { groupBundles, normPhone, validPhone } from './shared';
+import { groupBundles } from './shared';
+import { isValidPhone, phoneInputProps } from '@/lib/utils/phoneInput';
 
 interface Row {
   id: number; phone: string; bundleId: string
@@ -22,14 +23,14 @@ const BundleRow = memo(function BundleRow({ row, bundles, groups, busy, onChange
   onChange: (id: number, p: Partial<Row>) => void; onRemove: (id: number) => void
 }) {
   const b = bundles[row.bundleId];
-  const bad = row.phone && !validPhone(row.phone);
+  const bad = row.phone && !isValidPhone(row.phone);
   const icon = { idle: '', sending: '⏳', ok: '✅', error: '❌' }[row.status];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px,1fr) minmax(130px,1.2fr) 82px 52px 30px', gap: 8, alignItems: 'center', padding: '7px 12px', borderTop: `1px solid ${COLORS.border}`, background: row.status === 'ok' ? `${GREEN}0d` : row.status === 'error' ? `${COLORS.red}0d` : 'transparent' }}>
       <div>
-        <input value={row.phone} onChange={e => onChange(row.id, { phone: e.target.value, verified: undefined, status: 'idle', msg: '' })} placeholder="0542343324" disabled={busy} inputMode="tel"
+        <input type="tel" {...phoneInputProps(row.phone, phone => onChange(row.id, { phone, verified: undefined, status: 'idle', msg: '' }))} placeholder="0542343324" disabled={busy}
           style={{ ...inp, borderColor: bad ? COLORS.red : COLORS.border }} />
-        {(row.msg || bad) && <div style={{ fontSize: 10, marginTop: 2, color: bad || row.status === 'error' ? COLORS.red : GREEN }}>{bad ? 'Invalid number' : row.msg}</div>}
+        {(row.msg || bad) && <div style={{ fontSize: 10, marginTop: 2, color: bad || row.status === 'error' ? COLORS.red : GREEN }}>{bad ? 'Use 10 digits starting with 0' : row.msg}</div>}
       </div>
       <select value={row.bundleId} onChange={e => onChange(row.id, { bundleId: e.target.value, status: 'idle', msg: '' })} disabled={busy} style={inp}>
         <option value="">Choose bundle</option>
@@ -58,13 +59,16 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
 
   const update = (id: number, p: Partial<Row>) => setRows(prev => prev.map(r => (r.id === id ? { ...r, ...p } : r)));
   const remove = (id: number) => setRows(prev => prev.filter(r => r.id !== id));
+  const pasteLines = paste.split('\n').map(l => l.trim()).filter(Boolean);
+  const pasteValid = pasteLines.length > 0 && pasteLines.every(line => isValidPhone(line.split(/[\s,]+/)[0]));
 
   // "PHONE GB" per line → pick the Mhany bundle of that size on the chosen network
   const importPaste = () => {
+    if (!pasteValid) return;
     const list = groups[pasteNet] ?? [];
     const out: Row[] = [];
     const problems: string[] = [];
-    paste.split('\n').map(l => l.trim()).filter(Boolean).forEach(line => {
+    pasteLines.forEach(line => {
       const [phone, gbRaw = '1'] = line.split(/[\s,]+/);
       const mb = Math.round(parseFloat(gbRaw) * 1000);
       const match = list.find(b => b.size_mb === mb);
@@ -74,24 +78,27 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
     if (out.length) { setRows(out); setPaste(''); setNote(problems.length ? `${problems.length} line(s) have no matching Mhany bundle, so choose one or remove them.` : ''); }
   };
 
-  const ready = rows.filter(r => r.status !== 'ok' && validPhone(r.phone) && byId[r.bundleId]);
+  const ready = rows.filter(r => r.status !== 'ok' && isValidPhone(r.phone) && byId[r.bundleId]);
+  const incomplete = rows.some(r => r.status !== 'ok' && (!isValidPhone(r.phone) || !byId[r.bundleId]));
+  const numbersValid = rows.length > 0 && rows.every(r => isValidPhone(r.phone));
   const cost = ready.reduce((s, r) => s + byId[r.bundleId].price, 0);
   const short = balance !== null && cost > balance;
   const sent = rows.filter(r => r.status === 'ok').length;
   const failed = rows.filter(r => r.status === 'error').length;
 
   const verifyAll = async () => {
-    for (const r of rows.filter(r => validPhone(r.phone))) {
+    if (!numbersValid || running) return;
+    for (const r of rows) {
       update(r.id, { verified: 'checking' });
       try {
-        const res = await adminApi.mhanyVerify(normPhone(r.phone));
+        const res = await adminApi.mhanyVerify(r.phone);
         update(r.id, { verified: /verified/i.test(res.data.status) && !/un/i.test(res.data.status) ? 'yes' : 'no' });
       } catch { update(r.id, { verified: 'unknown' }); }
     }
   };
 
   const sendAll = async () => {
-    if (!ready.length) return;
+    if (!ready.length || incomplete || short || running) return;
     if (!window.confirm(`Send ${ready.length} bundle${ready.length > 1 ? 's' : ''} for ${money(cost)} from the Mhany wallet?`)) return;
     setRunning(true); setNote('');
     const CHUNK = 10;
@@ -99,7 +106,7 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
       const chunk = ready.slice(i, i + CHUNK);
       chunk.forEach(r => update(r.id, { status: 'sending', msg: '' }));
       try {
-        const { data } = await adminApi.mhanyBulkPurchase(chunk.map(r => ({ bundleId: r.bundleId, number: normPhone(r.phone) })));
+        const { data } = await adminApi.mhanyBulkPurchase(chunk.map(r => ({ bundleId: r.bundleId, number: r.phone })));
         chunk.forEach((r, k) => {
           const res = data.results[k];
           if (!res) update(r.id, { status: 'idle', msg: 'Not attempted (batch stopped)' });
@@ -126,7 +133,8 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
         </div>
         <p style={{ fontSize: 11, color: COLORS.muted, margin: '0 0 8px' }}>One per line as <code>PHONE GB</code>, for example <code>0542343324 4</code> (GB defaults to 1). Each line is matched to Mhany's bundle of that size.</p>
         <textarea value={paste} onChange={e => setPaste(e.target.value)} rows={4} placeholder={'0542343324 4\n0241234567 2'} style={{ ...inp, fontFamily: 'monospace', resize: 'vertical', lineHeight: 1.6, fontSize: 16 }} />
-        <button onClick={importPaste} disabled={!paste.trim()} style={{ marginTop: 8, padding: '8px 16px', borderRadius: 8, background: COLORS.blue, color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: paste.trim() ? 'pointer' : 'not-allowed', opacity: paste.trim() ? 1 : 0.5 }}>Import</button>
+        {pasteLines.length > 0 && !pasteValid && <p style={{ fontSize: 12, color: COLORS.red }}>Each line must start with a 10-digit number beginning with 0.</p>}
+        <button onClick={importPaste} disabled={!pasteValid} style={{ marginTop: 8, padding: '8px 16px', borderRadius: 8, background: COLORS.blue, color: '#fff', fontSize: 12, fontWeight: 700, border: 'none', cursor: pasteValid ? 'pointer' : 'not-allowed', opacity: pasteValid ? 1 : 0.5 }}>Import</button>
       </div>
 
       <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
@@ -143,7 +151,7 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderTop: `1.5px solid ${COLORS.border}` }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => setRows(p => [...p, { id: nextId++, phone: '', bundleId: p[p.length - 1]?.bundleId ?? '', status: 'idle', msg: '' }])} disabled={running} style={ghost}>+ Add row</button>
-            <button onClick={verifyAll} disabled={running} style={ghost}>Check numbers</button>
+            <button onClick={verifyAll} disabled={running || !numbersValid} style={ghost}>Check numbers</button>
             <span style={{ fontSize: 12, color: COLORS.muted }}>
               {rows.length} rows{sent > 0 && <span style={{ color: GREEN }}> · {sent} sent</span>}{failed > 0 && <span style={{ color: COLORS.red }}> · {failed} failed</span>}
             </span>
@@ -153,7 +161,7 @@ export default function PurchaseTab({ bundles, balance, onSent }: { bundles: Mha
               <div style={{ color: COLORS.white, fontWeight: 700 }}>Total {money(cost)}</div>
               {balance !== null && <div style={{ color: short ? COLORS.red : COLORS.muted }}>{short ? `Wallet short by ${money(cost - balance)}` : `Wallet ${money(balance)}`}</div>}
             </div>
-            <button onClick={sendAll} disabled={running || !ready.length || short} style={{ padding: '10px 22px', borderRadius: 8, background: COLORS.blue, color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: running || !ready.length || short ? 'not-allowed' : 'pointer', opacity: running || !ready.length || short ? 0.55 : 1, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={sendAll} disabled={running || !ready.length || incomplete || short} style={{ padding: '10px 22px', borderRadius: 8, background: COLORS.blue, color: '#fff', fontSize: 13, fontWeight: 700, border: 'none', cursor: running || !ready.length || incomplete || short ? 'not-allowed' : 'pointer', opacity: running || !ready.length || incomplete || short ? 0.55 : 1, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
               {running ? <><span className="spinner" /> Sending</> : `Send ${ready.length}`}
             </button>
           </div>

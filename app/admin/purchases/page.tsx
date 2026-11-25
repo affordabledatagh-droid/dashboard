@@ -15,6 +15,7 @@ interface Transaction {
   sub_agent_profit_at_purchase: number
   status: string
   order_status: OrderStatus
+  fulfillment_dispatch: 'held' | 'sending' | 'sent' | 'failed' | 'uncertain' | null
   created_at: string
   delivered_at: string | null
   data_packages: { name: string; data_size: string; network: string } | null
@@ -139,8 +140,11 @@ export default function PurchasesPage() {
     )
   }, [transactions, search])
 
+  const protectedOrders = transactions.some(tx =>
+    tx.fulfillment_dispatch && tx.fulfillment_dispatch !== 'sent')
+
   const handleExportAndProcess = async () => {
-    if (!transactions.length) return
+    if (!transactions.length || protectedOrders) return
     setActing(true)
     try {
       // 1. Download grouped export file
@@ -182,7 +186,7 @@ export default function PurchasesPage() {
 
   const ActionButton = () => {
     if (tab === 'placed') {
-      const disabled = acting || transactions.length === 0
+      const disabled = acting || transactions.length === 0 || protectedOrders
       return (
         <button onClick={handleExportAndProcess} disabled={disabled} style={{
           padding: '10px 18px', borderRadius: '8px', border: 'none',
@@ -359,6 +363,11 @@ export default function PurchasesPage() {
                     </td>
                     <td style={{ padding: '12px 14px', borderBottom: `1px solid ${COLORS.border}` }}>
                       <OrderBadge status={tx.order_status} />
+                      {tx.fulfillment_dispatch && tx.fulfillment_dispatch !== 'sent' && (
+                        <div style={{ color: COLORS.yellow, fontSize: 11, marginTop: 4 }}>
+                          {tx.fulfillment_dispatch === 'held' ? 'Held for release' : `Fulfillment: ${tx.fulfillment_dispatch}`}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

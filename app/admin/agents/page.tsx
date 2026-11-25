@@ -10,6 +10,7 @@ import { TEMPLATES, suggestTemplate, templateContext, whatsappLink } from '@/lib
 import { daysSinceContacted, keyOf, markContacted } from '@/lib/utils/contacted'
 import BulkMessageModal from '@/components/admin/BulkMessageModal'
 import { money, ago, dateTime } from '@/lib/utils/format'
+import { isValidPhone, phoneInputProps } from '@/lib/utils/phoneInput'
 import { HiChevronUp, HiChevronDown, HiMagnifyingGlass, HiChevronLeft, HiChevronRight } from 'react-icons/hi2'
 import { FaWhatsapp } from 'react-icons/fa'
 
@@ -370,9 +371,10 @@ function WithdrawForm({ row, onDone, show }: { row: AgentRow; onDone: () => void
   const total = round2(amt + fee)
   const max = maxWd(row.walletBalance)
   const tooHigh = amt >= MIN_WD && total > row.walletBalance
-  const ok = amt >= MIN_WD && !tooHigh && phone.replace(/\D/g, '').length >= 9
+  const ok = amt >= MIN_WD && !tooHigh && isValidPhone(phone)
 
   const submit = async () => {
+    if (!ok || busy) return
     setBusy(true); setErr('')
     try {
       await adminApi.initiateWithdrawal(row.type, row.id, { amount: amt, phone, network })
@@ -392,7 +394,8 @@ function WithdrawForm({ row, onDone, show }: { row: AgentRow; onDone: () => void
           <select style={field} value={network} onChange={e => setNetwork(e.target.value)}><option>MTN</option><option>Telecel</option><option>AirtelTigo</option></select>
         </label>
         <label style={lbl}>MoMo number
-          <input style={field} inputMode="tel" value={phone} placeholder="024 000 0000" onChange={e => setPhone(e.target.value)} />
+          <input type="tel" style={field} placeholder="0240000000" {...phoneInputProps(phone, setPhone)} />
+          <span style={{ fontSize: 11, fontWeight: 400 }}>Enter 10 digits starting with 0.</span>
         </label>
       </div>
       {amt > 0 && (

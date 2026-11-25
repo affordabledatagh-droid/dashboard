@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { COLORS, NETWORK_COLORS } from '@/lib/constants/colors';
 import StatCard from '@/components/admin/StatCard';
 import { BarChart, Sparkline } from '@/components/admin/Charts';
-import { adminApi, Attention, Breakdown, LeaderCard, Leaders, Metric, Period, Summary } from '@/lib/utils/adminApi';
+import { adminApi, Attention, Breakdown, FulfillmentHold, LeaderCard, Leaders, Metric, PaymentOptions, PaymentSelection, Period, Summary } from '@/lib/utils/adminApi';
 import { money, weekdayLabel } from '@/lib/utils/format';
 import { HiExclamationTriangle } from 'react-icons/hi2';
 
@@ -37,6 +37,108 @@ function Tabs<T extends string>({ value, onChange, items }: { value: T; onChange
 }
 
 const Sk = ({ h = 90 }: { h?: number }) => <div className="skeleton" style={{ height: h, borderRadius: 14 }} />;
+
+function FulfillmentHoldsSection() {
+  const [holds, setHolds] = useState<FulfillmentHold[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    try { setHolds((await adminApi.getFulfillmentHolds()).data); setError(''); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Could not load delivery holds'); }
+  }
+  useEffect(() => { load(); const timer = setInterval(load, 30000); return () => clearInterval(timer); }, []);
+
+  async function toggle(hold: FulfillmentHold) {
+    if (!hold.held && !window.confirm(`Hold new ${hold.network} orders? Orders already being sent may still reach Mhany.`)) return;
+    if (hold.held && !window.confirm(`Release the ${hold.network} hold? Held orders will be sent to Mhany automatically.`)) return;
+    setBusy(true); setError('');
+    try { await adminApi.setFulfillmentHold(hold.network, !hold.held); await load(); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Could not update delivery hold'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <section style={{ ...card, marginBottom: 20 }}>
+      <h2 style={h2}>Delivery holds</h2>
+      <p style={{ ...sub, marginBottom: 12 }}>New paid orders are held per network and sent automatically when released. Orders already being sent may still reach Mhany; earlier orders are not added to the queue.</p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {holds.map(hold => (
+          <div key={hold.network} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: 10, background: COLORS.bg, borderRadius: 8 }}>
+            <div style={{ fontSize: 13, color: COLORS.white }}>
+              <strong>{hold.network}</strong> · {hold.held ? 'On hold' : 'Sending'} · {hold.queued} queued
+              {(hold.failed > 0 || hold.uncertain > 0 || hold.sending > 0) && <div style={{ color: COLORS.yellow, marginTop: 4 }}>
+                {hold.sending} sending · {hold.failed} failed before sending · {hold.uncertain} need Mhany verification
+              </div>}
+            </div>
+            <button type="button" disabled={busy} onClick={() => toggle(hold)} aria-pressed={hold.held}
+              style={{ padding: '9px 12px', borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: busy ? 'not-allowed' : 'pointer', background: hold.held ? COLORS.yellow : COLORS.blue, color: hold.held ? '#111' : '#fff', border: 'none' }}>
+              {hold.held ? 'Release hold' : 'Hold orders'}
+            </button>
+          </div>
+        ))}
+      </div>
+      {error && <p role="alert" style={{ color: COLORS.red, fontSize: 13 }}>{error}</p>}
+      {!holds.length && !error && <p style={sub}>Loading delivery holds…</p>}
+      <p style={sub}>Investigate uncertain or stuck sending orders before retrying; they may already be at Mhany. Direct bulk purchases cannot be queued.</p>
+    </section>
+  );
+}
+
+function PaymentOptionsSection() {
+  const [options, setOptions] = useState<PaymentOptions | null>(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    adminApi.getPaymentOptions()
+      .then(result => { if (active) setOptions(result.data); })
+      .catch(err => { if (active) setError(err.message); });
+    return () => { active = false; };
+  }, []);
+
+  async function select(selection: PaymentSelection) {
+    setSaving(true); setError('');
+    try {
+      const result = await adminApi.setPaymentOptions(selection);
+      setOptions(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save payment options');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <section style={{ ...card, marginBottom: 20 }}>
+      <h2 style={h2}>Payment options</h2>
+      <p style={{ ...sub, marginBottom: 12 }}>
+        {!options ? (error ? 'Payment options could not be loaded.' : 'Loading payment options…')
+          : options.testMode
+            ? 'Choose the available options for purchases and deposits. ShapShapp is test-only; no data is delivered.'
+            : 'Paystack is available. ShapShapp controls are available only in the isolated test environment.'}
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="Payment options">
+        {([
+          { id: 'paystack', label: 'Paystack only' },
+          { id: 'shapshapp', label: 'ShapShapp only' },
+          { id: 'both', label: 'Both' },
+        ] as { id: PaymentSelection; label: string }[]).map(item => (
+          <button key={item.id} type="button" disabled={!options?.testMode || saving}
+            aria-pressed={options?.selection === item.id} onClick={() => select(item.id)}
+            style={{ padding: '9px 12px', borderRadius: 8, fontWeight: 600, fontSize: 13,
+              cursor: options?.testMode && !saving ? 'pointer' : 'not-allowed',
+              background: options?.selection === item.id ? COLORS.blue : COLORS.bg,
+              color: options?.selection === item.id ? '#fff' : COLORS.muted,
+              border: `1px solid ${options?.selection === item.id ? COLORS.blue : COLORS.border}` }}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {saving && <p role="status" style={sub}>Saving…</p>}
+      {error && <p role="alert" style={{ color: COLORS.red, fontSize: 13 }}>{error}</p>}
+    </section>
+  );
+}
 
 /** Runs `fn` whenever deps change; keeps the previous data on screen while reloading. */
 function useLoad<T>(fn: () => Promise<T>, deps: unknown[], enabled = true) {
@@ -277,6 +379,8 @@ export default function AdminDashboard() {
         <p style={{ fontSize: 13, color: COLORS.muted, margin: '6px 0 0' }}>Weeks run Monday to Sunday. The current week only counts the days that have happened.</p>
       </div>
 
+      <FulfillmentHoldsSection />
+      <PaymentOptionsSection />
       <AttentionSection />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>

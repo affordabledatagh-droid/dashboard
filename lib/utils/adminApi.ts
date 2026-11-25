@@ -76,6 +76,12 @@ export interface Pricing {
 
 export type Period = 'today' | 'yesterday' | 'week' | 'lastweek' | 'month' | 'lastmonth'
 export type Metric = 'profit' | 'sales' | 'orders'
+export type PaymentSelection = 'paystack' | 'shapshapp' | 'both'
+export interface PaymentOptions { selection: PaymentSelection; providers: ('paystack' | 'shapshapp')[]; testMode: boolean }
+export interface FulfillmentHold {
+  network: 'MTN' | 'TELECEL' | 'AT PREMIUM'
+  held: boolean; updated_at: string; queued: number; sending: number; failed: number; uncertain: number
+}
 
 export interface RangeInfo { period: Period; from: string; to: string; label: string; daysLabel: string; isFinished: boolean }
 export interface DailyPoint { date: string; orders: number; delivered: number; revenue: number; agentProfit: number; platformSales: number }
@@ -141,6 +147,12 @@ export interface MhanyOrder { id: string; bundleSize: string; pricePaid: number;
 // ── API ───────────────────────────────────────────────────────────
 
 export const adminApi = {
+  getFulfillmentHolds: () => request<{ data: FulfillmentHold[] }>('/admin/fulfillment-holds'),
+  setFulfillmentHold: (network: FulfillmentHold['network'], held: boolean) =>
+    request<{ data: { network: FulfillmentHold['network']; held: boolean } }>(`/admin/fulfillment-holds/${encodeURIComponent(network)}`, json('PUT', { held })),
+  getPaymentOptions: () => request<{ data: PaymentOptions }>('/admin/payment-options'),
+  setPaymentOptions: (selection: PaymentSelection) =>
+    request<{ data: PaymentOptions }>('/admin/payment-options', json('PUT', { selection })),
   // Packages
   getPackages:   ()                         => request<{ data: any[] }>('/packages/admin'),
   createPackage: (body: object)             => request<{ data: any }>('/packages/admin', json('POST', body)),
