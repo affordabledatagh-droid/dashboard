@@ -115,7 +115,7 @@ function PaymentOptionsSection() {
         {!options ? (error ? 'Payment options could not be loaded.' : 'Loading payment options…')
           : options.testMode
             ? 'Choose the available options for purchases and deposits. ShapShapp is test-only; no data is delivered.'
-            : 'Paystack is available. ShapShapp controls are available only in the isolated test environment.'}
+            : 'Choose the available payment options for purchases and deposits.'}
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="Payment options">
         {([
@@ -123,10 +123,10 @@ function PaymentOptionsSection() {
           { id: 'shapshapp', label: 'ShapShapp only' },
           { id: 'both', label: 'Both' },
         ] as { id: PaymentSelection; label: string }[]).map(item => (
-          <button key={item.id} type="button" disabled={!options?.testMode || saving}
+          <button key={item.id} type="button" disabled={!options || saving}
             aria-pressed={options?.selection === item.id} onClick={() => select(item.id)}
             style={{ padding: '9px 12px', borderRadius: 8, fontWeight: 600, fontSize: 13,
-              cursor: options?.testMode && !saving ? 'pointer' : 'not-allowed',
+              cursor: options && !saving ? 'pointer' : 'not-allowed',
               background: options?.selection === item.id ? COLORS.blue : COLORS.bg,
               color: options?.selection === item.id ? '#fff' : COLORS.muted,
               border: `1px solid ${options?.selection === item.id ? COLORS.blue : COLORS.border}` }}>
